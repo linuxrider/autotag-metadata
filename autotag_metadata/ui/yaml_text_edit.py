@@ -31,6 +31,7 @@ from PyQt6.QtGui import (
     QPalette,
     QTextCharFormat,
     QTextCursor,
+    QTextFormat,
 )
 from PyQt6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 
@@ -39,6 +40,9 @@ from .snippets_list import SNIPPET_MIME
 from .yaml_highlighter import YamlHighlighter
 
 _KEY_RE = re.compile(r"""^\s*([^:#\[\]{}&*!|>'"%@`]+):\s*""")
+
+#: Background for the persistent syntax-error line highlight (matches the YAML tab blink).
+_ERROR_HIGHLIGHT = "#e74c3c"
 
 
 class _ZoomGutter(QWidget):
@@ -144,12 +148,14 @@ class YamlTextEdit(QPlainTextEdit):
     def __init__(self, *args, show_zoom_gutter: bool = False, **kwargs):
         super().__init__(*args, **kwargs)
         self._zoom_gutter: _ZoomGutter | None = None
+        self._hover_line: int | None = None
+        self._error_line: int | None = None
         self.setAcceptDrops(True)
         self.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
         self.setTabStopDistance(self._INDENT_N * self.fontMetrics().horizontalAdvance(" "))
         # Theme (light/dark) is taken from the palette at construction. A live
-        # re-theme hook is intentionally avoided: _validate_yaml() restyles this
-        # widget on every keystroke, which would re-enter the highlighter.
+        # re-theme hook is intentionally avoided: _on_text_changed() runs on every
+        # keystroke, and restyling here would re-enter the highlighter.
         self._highlighter = YamlHighlighter(self.document(), self.palette())
         if show_zoom_gutter:
             self._zoom_gutter = _ZoomGutter(self)
@@ -165,20 +171,37 @@ class YamlTextEdit(QPlainTextEdit):
 
     def set_hover_highlight(self, block_no: int | None) -> None:
         """Highlight the full line at *block_no* via an extra selection, or clear."""
+        self._hover_line = block_no
+        self._refresh_extra_selections()
+
+    def set_error_line(self, block_no: int | None) -> None:
+        """Persistently highlight the full line at *block_no* as a syntax-error location."""
+        self._error_line = block_no
+        self._refresh_extra_selections()
+
+    def _refresh_extra_selections(self) -> None:
         selections = []
-        if block_no is not None:
-            block = self.document().findBlockByNumber(block_no)
-            if block.isValid():
-                fmt = QTextCharFormat()
-                color = self.palette().color(QPalette.ColorRole.Highlight)
-                color.setAlpha(55)
-                fmt.setBackground(color)
-                sel = QTextEdit.ExtraSelection()
-                sel.format = fmt
-                sel.cursor = QTextCursor(block)
-                sel.cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor)
-                selections.append(sel)
+        error_color = QColor(_ERROR_HIGHLIGHT)
+        error_color.setAlpha(90)
+        selections.extend(self._line_selections(self._error_line, error_color))
+        hover_color = self.palette().color(QPalette.ColorRole.Highlight)
+        hover_color.setAlpha(55)
+        selections.extend(self._line_selections(self._hover_line, hover_color))
         self.setExtraSelections(selections)
+
+    def _line_selections(self, block_no: int | None, color: QColor) -> list[QTextEdit.ExtraSelection]:
+        if block_no is None:
+            return []
+        block = self.document().findBlockByNumber(block_no)
+        if not block.isValid():
+            return []
+        fmt = QTextCharFormat()
+        fmt.setBackground(color)
+        fmt.setProperty(QTextFormat.Property.FullWidthSelection, True)
+        sel = QTextEdit.ExtraSelection()
+        sel.format = fmt
+        sel.cursor = QTextCursor(block)
+        return [sel]
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

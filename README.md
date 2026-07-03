@@ -14,6 +14,13 @@ capabilities for verifying the metadata against a schema.
 
 Multiple instances of the program can be launched to watch different folders simultaneously.
 
+The application includes a **guided tour** (Help → Show Tour, and automatically on first launch)
+that walks through the whole interface — choosing a folder to watch, editing metadata as a form or
+as raw YAML, spotting and fixing syntax errors, and reusing snippets, templates, and multi-panel
+views:
+
+![guided tour](https://raw.githubusercontent.com/echemdb/autotag-metadata/main/doc/images/tour.gif)
+
 # Installation
 
 ## Windows

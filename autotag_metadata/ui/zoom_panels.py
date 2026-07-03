@@ -79,6 +79,7 @@ class _ZoomPanelBase(QtWidgets.QWidget):
     panel_dropped = QtCore.pyqtSignal(object, str)  # (source_view, DropEdge)
     snippet_capture_requested = QtCore.pyqtSignal(dict, str)  # (path-anchored data, path)
     snippet_dropped = QtCore.pyqtSignal(str)  # dropped snippet YAML text
+    yaml_error = QtCore.pyqtSignal(str)  # syntax error message; ZoomTextView only
 
     def __init__(self, document: YamlDocument, initial_path: str = "", parent=None):
         super().__init__(parent)
@@ -183,6 +184,11 @@ class _ZoomPanelBase(QtWidgets.QWidget):
     @property
     def is_active(self) -> bool:
         return self._active
+
+    @property
+    def body(self) -> QtWidgets.QWidget:
+        """Content widget only — excludes the header/path-filter bar. For tour targeting."""
+        return self._body
 
     def set_active(self, active: bool) -> None:
         """Mark this as the active panel — the one new snippets are captured from.
@@ -406,6 +412,7 @@ class ZoomTextView(_ZoomPanelBase):
             cursor = self._editor.textCursor()
             cursor.setPosition(min(pos, len(text)))
             self._editor.setTextCursor(cursor)
+        self._editor.set_error_line(None)
         self._syncing = False
 
     def _on_text_changed(self) -> None:
@@ -413,11 +420,16 @@ class ZoomTextView(_ZoomPanelBase):
             return
         text = self._editor.toPlainText().strip()
         if not text:
+            self._editor.set_error_line(None)
             return
         try:
             parsed = yaml.safe_load(text)
-        except yaml.YAMLError:
+        except yaml.YAMLError as exc:
+            mark = getattr(exc, "problem_mark", None)
+            self._editor.set_error_line(mark.line if mark is not None else None)
+            self.yaml_error.emit(str(exc))
             return
+        self._editor.set_error_line(None)
         if parsed is None:
             return
         self._doc.set_subtree(self._path, parsed)

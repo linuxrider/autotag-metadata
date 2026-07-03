@@ -43,6 +43,7 @@ class YamlMultiView(QtWidgets.QWidget):
     document_changed = QtCore.pyqtSignal(dict)
     snippet_capture_requested = QtCore.pyqtSignal(dict, str)
     snippet_dropped = QtCore.pyqtSignal(str)
+    yaml_error = QtCore.pyqtSignal(str)
 
     def __init__(self, parent=None, view_factory=None, document: YamlDocument | None = None):
         super().__init__(parent)
@@ -148,6 +149,7 @@ class YamlMultiView(QtWidgets.QWidget):
         view.panel_dropped.connect(self._on_panel_dropped)
         view.snippet_capture_requested.connect(self.snippet_capture_requested)
         view.snippet_dropped.connect(self.snippet_dropped)
+        view.yaml_error.connect(self.yaml_error)
         self._all_views.append(view)
         return view
 
@@ -302,6 +304,7 @@ class YamlMultiView(QtWidgets.QWidget):
         view.panel_dropped.disconnect(self._on_panel_dropped)
         view.snippet_capture_requested.disconnect(self.snippet_capture_requested)
         view.snippet_dropped.disconnect(self.snippet_dropped)
+        view.yaml_error.disconnect(self.yaml_error)
 
     def _clear_all(self) -> None:
         for view in list(self._all_views):

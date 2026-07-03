@@ -79,6 +79,10 @@ class TourOverlay(QtWidgets.QWidget):
         self.setFocus()
         self._show_step()
 
+    def stop(self) -> None:
+        """Cancel tour programmatically (e.g. app closing mid-tour)."""
+        self._finish()
+
     def _finish(self) -> None:
         self.hide()
         self.finished.emit()
@@ -167,6 +171,14 @@ class TourOverlay(QtWidgets.QWidget):
         self._btn_next.setText("Done" if last else "Next")
         self._btn_skip.setVisible(not last)
         self._bubble.adjustSize()
+        self._reposition()
+        self.update()
+        # An on_enter that rebuilds widgets (e.g. re-tiling the form) only gets its
+        # final geometry after this event-loop cycle; reposition/repaint once more then
+        # so the spotlight lands on the settled target rather than a stale first paint.
+        QtCore.QTimer.singleShot(0, self._reposition_and_repaint)
+
+    def _reposition_and_repaint(self) -> None:
         self._reposition()
         self.update()
 
@@ -272,9 +284,46 @@ class TourOverlay(QtWidgets.QWidget):
         else:
             super().keyPressEvent(event)
 
-    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
-        # Swallow clicks so the UI beneath stays inert while the tour runs.
+    def _forward_if_in_hole(self, event: QtGui.QMouseEvent) -> None:
+        """Forward *event* to the real widget under the cursor when inside a target hole."""
+        rects = self._target_rects()
+        padded = [r.adjusted(-_PAD, -_PAD, _PAD, _PAD) for r in rects]
+        if not any(r.contains(event.pos()) for r in padded):
+            event.accept()
+            return
+        self.setAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        target = QtWidgets.QApplication.widgetAt(event.globalPosition().toPoint())
+        self.setAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
+        if target is None or target is self:
+            event.accept()
+            return
+        local = QtCore.QPointF(target.mapFromGlobal(event.globalPosition().toPoint()))
+        forwarded = QtGui.QMouseEvent(
+            event.type(),
+            local,
+            event.globalPosition(),
+            event.button(),
+            event.buttons(),
+            event.modifiers(),
+        )
+        QtWidgets.QApplication.sendEvent(target, forwarded)
+        if event.type() == QtCore.QEvent.Type.MouseButtonPress:
+            focus_target = target
+            parent = target.parentWidget()
+            if isinstance(parent, QtWidgets.QAbstractScrollArea) and parent.viewport() is target:
+                focus_target = parent
+            if focus_target.focusPolicy() != QtCore.Qt.FocusPolicy.NoFocus:
+                focus_target.setFocus(QtCore.Qt.FocusReason.MouseFocusReason)
         event.accept()
+
+    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
+        self._forward_if_in_hole(event)
+
+    def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
+        self._forward_if_in_hole(event)
+
+    def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent) -> None:
+        self._forward_if_in_hole(event)
 
     def paintEvent(self, _event) -> None:
         painter = QtGui.QPainter(self)

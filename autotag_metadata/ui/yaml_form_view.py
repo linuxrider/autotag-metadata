@@ -156,7 +156,7 @@ class _FieldRow(QtWidgets.QWidget):
         _connect_widget(widget, val, node, key, callback)
 
         layout = QtWidgets.QHBoxLayout(self)
-        layout.setContentsMargins(4, 2, 6, 2)
+        layout.setContentsMargins(4, 2, 0, 2)
         layout.setSpacing(0)
         layout.addWidget(label)
         layout.addWidget(widget, 1)
@@ -196,7 +196,7 @@ class _ValueUnitRow(QtWidgets.QWidget):
                 ordered.append(k)
 
         layout = QtWidgets.QHBoxLayout(self)
-        layout.setContentsMargins(4, 2, 6, 2)
+        layout.setContentsMargins(4, 2, 0, 2)
         layout.setSpacing(4)
         layout.addWidget(key_label)
 
@@ -449,7 +449,7 @@ def _make_scalar_item_row(text: str, zoom_path: str, on_zoom) -> QtWidgets.QWidg
     """A read-only scalar list element with an optional filter button."""
     row = QtWidgets.QWidget()
     layout = QtWidgets.QHBoxLayout(row)
-    layout.setContentsMargins(8, 2, 6, 2)
+    layout.setContentsMargins(8, 2, 0, 2)
     layout.setSpacing(0)
     label = QtWidgets.QLabel(text)
     _shrinkable(label)  # clip long elements rather than push the button off-screen

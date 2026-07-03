@@ -48,7 +48,7 @@ fruit:
   supplier: Banana corp.
 ```
 
-When autotag-metadata is active when `banana.csv` is generated, a new file `banana.csv.meta.yaml` is written in the same folder, which contains the pre-defined set of metadata. The next measurement is supposed to be done at 320 K. In that case, while autotag-metadata is still running, we change the temperature from 300 to 320 K in the editor (in either the form or the raw YAML view). Once the next file is created, here `banana2.csv`, the newly created `banana2.csv.meta.yaml` will contain the updated temperature.
+When autotag-metadata is active when `banana.csv` is generated, a new file `banana.csv.metadata.yaml` is written in the same folder, which contains the pre-defined set of metadata. The next measurement is supposed to be done at 320 K. In that case, while autotag-metadata is still running, we change the temperature from 300 to 320 K in the editor (in either the form or the raw YAML view). Once the next file is created, here `banana2.csv`, the newly created `banana2.csv.metadata.yaml` will contain the updated temperature.
 
 An elaborate metadata file for an electrochemistry experiment can be found [echemdbs' metadata schema](https://github.com/echemdb/metadata-schema/blob/main/examples/file_schemas/autotag.yaml) repository.
 

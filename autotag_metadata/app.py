@@ -34,11 +34,11 @@ from .core.yaml_document import non_destructive_merge, overwrite_merge
 from .core.yaml_utils import dump_yaml, dump_yaml_to_file, parse_yaml
 from .file_handling import FileMonitor
 from .ui.editable_list import EditableListView
+from .ui.guided_tour import GuidedTour
 from .ui.label_dropzone import LabelDropzone
 from .ui.library_panel import LibraryPanel
 from .ui.logger import LogHandler
 from .ui.snippets_list import SnippetsListView
-from .ui.tour import TourOverlay, TourStep
 from .ui.yaml_multi_view import YamlMultiView
 from .ui.zoom_panels import ZoomFormView, ZoomTextView
 
@@ -50,8 +50,7 @@ _ICON = _DIR / "autotag_metadata.png"
 _IDX_FORM = 0
 _IDX_YAML = 1
 
-# Validity indicator colours for the YAML tab button (read on light and dark).
-_YAML_OK = "#27ae60"
+# Error indicator colour for the YAML tab background (read on light and dark).
 _YAML_ERR = "#e74c3c"
 
 
@@ -75,6 +74,15 @@ class AutotagApp(QtWidgets.QMainWindow):
         self._setup_logger()
         self.config = Config()
 
+        # Created before the chrome so _setup_menus can wire the Help → Show Tour
+        # action; it only stores a reference and does nothing until start().
+        self._tour = GuidedTour(self)
+
+        self._yaml_blink_timer = QtCore.QTimer(self)
+        self._yaml_blink_timer.setInterval(500)
+        self._yaml_blink_timer.timeout.connect(self._toggle_yaml_blink)
+        self._yaml_blink_on = False
+
         # Watch / live-file controls — kept under their original attribute names
         # so the handler methods stay unchanged. They live in the toolbars.
         self.ledTemporaryLoc = QtWidgets.QLineEdit()
@@ -82,6 +90,8 @@ class AutotagApp(QtWidgets.QMainWindow):
         self.btnUseTemporaryFile = QtWidgets.QPushButton("Use")
         self.btnUseTemporaryFile.setCheckable(True)
         self.btnSelectTemporaryFile = QtWidgets.QPushButton("Select…")
+        self.btnOpenTemporaryFile = QtWidgets.QPushButton("Open")
+        self.btnOpenTemporaryFile.setToolTip("Open the live file in your default editor")
         self.ledFilePatterns = QtWidgets.QLineEdit()
         self.ledFilePatterns.setPlaceholderText("*.csv,*.tsv (empty = all)")
         self.cbRecursiveWatch = QtWidgets.QCheckBox("Recursive")
@@ -102,6 +112,8 @@ class AutotagApp(QtWidgets.QMainWindow):
         self.btnSelectTemporaryFile.clicked.connect(self.select_temporary_file)
         self.btnUseTemporaryFile.clicked.connect(self.toggle_watch_temporary_file)
         self.btnUseTemporaryFile.setDisabled(True)
+        self.btnOpenTemporaryFile.clicked.connect(self.open_temporary_file)
+        self.btnOpenTemporaryFile.setDisabled(True)
         self.ledTemporaryLoc.textChanged.connect(self._enable_use)
         self.btnBrowse.clicked.connect(self.browse_folder)
         self.btnActivate.clicked.connect(self.toggle_watch)
@@ -119,6 +131,7 @@ class AutotagApp(QtWidgets.QMainWindow):
         self._text_multiview.document_changed.connect(self._on_text_multiview_changed)
         self._text_multiview.snippet_capture_requested.connect(self.capture_snippet)
         self._text_multiview.snippet_dropped.connect(self._apply_snippet_text)
+        self._text_multiview.yaml_error.connect(self._on_yaml_error)
         self._form_multiview.set_layout(self.config.multiview_layout)
 
         self._setup_snippet_dock()
@@ -126,15 +139,14 @@ class AutotagApp(QtWidgets.QMainWindow):
         self._setup_library_docks()
 
         # The editor (form + raw YAML) fills the central area.
-        container_layout = self.editorContainer.layout()
         self._stack = QtWidgets.QStackedWidget()
         self._stack.addWidget(self._form_multiview)  # index 0 — form
         self._stack.addWidget(self._text_multiview)  # index 1 — raw YAML
-        container_layout.addWidget(self._stack)
 
         self._setup_menus()
         self._setup_toolbar()
         self._setup_settings_toolbar()
+        self._setup_editor_area()
 
         QtGui.QShortcut(QtGui.QKeySequence("Ctrl+Tab"), self).activated.connect(self._toggle_view)
 
@@ -147,107 +159,9 @@ class AutotagApp(QtWidgets.QMainWindow):
         self._temporary_write_timer = QtCore.QTimer()
         self._temporary_write_timer.timeout.connect(self._reenable_temporary_file_watch)
 
-        self._tour: TourOverlay | None = None
         if not self.config.tour_seen:
             # Defer until the window is shown so widget geometry is settled.
-            QtCore.QTimer.singleShot(0, self._start_tour)
-
-    # -- guided tour -------------------------------------------------------
-
-    def _start_tour(self) -> None:
-        """Launch the coach-mark tour over the live chrome."""
-        if self._tour is not None:
-            return
-        self.config.tour_seen = True
-        self._tour = TourOverlay(self, self._build_tour_steps())
-        self._tour.finished.connect(self._on_tour_finished)
-        self._tour.start()
-
-    def _on_tour_finished(self) -> None:
-        self._tour = None
-
-    def _reveal_dropzone(self) -> None:
-        """Show the drop-files dock so the tour can highlight it."""
-        self._dropzone_dock.show()
-        self._dropzone_dock.raise_()
-
-    def _build_tour_steps(self) -> list[TourStep]:
-        """Steps pointing at the real toolbar/editor/library chrome."""
-        sidebar_btn = self._toolbar.widgetForAction(self._act_sidebar)
-        dropzone_btn = self._toolbar.widgetForAction(self._dropzone_toggle)
-        return [
-            TourStep(
-                "Welcome to Autotag Metadata",
-                "This tool watches a folder and writes a <code>.metadata.yaml</code> sidecar next to "
-                "every new file, using the metadata you prepare here. Let's walk through it.",
-            ),
-            TourStep(
-                "1. Choose a folder to watch",
-                "Pick the folder to watch with <b>Browse…</b>, then press <b>Activate</b>. While "
-                "active, every new file in it is tagged with your metadata.",
-                [self.ledFolder, self.btnBrowse, self.btnActivate],
-            ),
-            TourStep(
-                "2. Filter which files",
-                "Restrict tagging to matching files with comma-separated globs "
-                "(e.g. <code>*.csv,*.tsv</code>), and tick <b>Recursive</b> to include sub-folders.",
-                [self.ledFilePatterns, self.cbRecursiveWatch],
-            ),
-            TourStep(
-                "3.1 Switch between views",
-                "Edit metadata as a structured <b>Form</b> or as raw <b>YAML</b>. These tabs switch "
-                "between the two — both edit the same document, so you can move freely between them.",
-                [self._view_tabs],
-                on_enter=lambda: self._view_tabs.setCurrentIndex(_IDX_FORM),
-            ),
-            TourStep(
-                "3.2 The Form editor",
-                "The Form shows your metadata as fields. It is a tiling multi-view: split a panel "
-                "and zoom each onto a different path (with the <b>⤢</b> buttons) to edit distant "
-                "fields side by side.",
-                [self._form_multiview],
-                on_enter=lambda: self._view_tabs.setCurrentIndex(_IDX_FORM),
-            ),
-            TourStep(
-                "3.3 The YAML editor",
-                "The YAML tab is the same document as raw text, with syntax highlighting. Its tab "
-                "label turns green when the YAML is valid and red when it is not.",
-                [self._text_multiview],
-                on_enter=lambda: self._view_tabs.setCurrentIndex(_IDX_YAML),
-            ),
-            TourStep(
-                "4.1 Open the Library",
-                "This <b>☰ Library</b> button shows or hides the library sidebar of reusable "
-                "Snippets, Templates, and Views.",
-                [sidebar_btn],
-                on_enter=lambda: self._act_sidebar.setChecked(True),
-            ),
-            TourStep(
-                "4.2 The Library panel",
-                "The Library holds <b>Snippets</b> (reusable sub-trees), <b>Templates</b> (whole "
-                "documents), and <b>Views</b> (saved panel layouts). Save from here and "
-                "double-click to apply.",
-                [self._snippet_dock, self._templates_dock, self._views_dock],
-            ),
-            TourStep(
-                "5.1 Drop files on demand",
-                "This <b>Drop files</b> toggle opens a drop zone for tagging individual files "
-                "without watching a folder.",
-                [dropzone_btn],
-                on_enter=self._reveal_dropzone,
-            ),
-            TourStep(
-                "5.2 The drop zone",
-                "Drag individual files onto this zone to tag them with the current metadata. "
-                "The <b>Log</b> panel shows what happened.",
-                [self._dropzone_dock],
-                on_enter=self._reveal_dropzone,
-            ),
-            TourStep(
-                "You're ready",
-                "That's the tour. Re-open it any time from <b>Help → Show Tour</b>. Happy tagging!",
-            ),
-        ]
+            QtCore.QTimer.singleShot(0, self._tour.start)
 
     # -- settings persistence ----------------------------------------------
 
@@ -266,6 +180,7 @@ class AutotagApp(QtWidgets.QMainWindow):
         self.cbRecursiveWatch.setChecked(self.config.recursive_watching)
 
     def closeEvent(self, event):
+        self._tour.stop()  # no-op unless a tour is running; restores state it changed
         self.config.window_geometry = self.frameGeometry().getCoords()
         self.config.watch_folder = self.ledFolder.text()
         self.config.temporary_file = self.ledTemporaryLoc.text()
@@ -283,15 +198,24 @@ class AutotagApp(QtWidgets.QMainWindow):
 
     # -- tree / yaml synchronization ---------------------------------------
 
-    def _validate_yaml(self):
-        """Reflect YAML validity on the tab button (document is always valid when maintained via the UI)."""
-        self._set_yaml_status(True)
-        return True
+    def _on_yaml_error(self, detail: str) -> None:
+        self._set_yaml_status(False, detail)
 
     def _set_yaml_status(self, valid: bool, detail: str | None = None) -> None:
-        """Tint the YAML tab green/red to signal syntax validity."""
-        self._view_tabs.setTabTextColor(_IDX_YAML, QtGui.QColor(_YAML_OK if valid else _YAML_ERR))
+        """Blink the YAML tab's background red while its syntax is invalid; clear it when valid."""
+        if valid:
+            self._yaml_blink_timer.stop()
+            self._yaml_blink_on = False
+            self._view_tabs.setStyleSheet("")
+        elif not self._yaml_blink_timer.isActive():
+            self._yaml_blink_timer.start()
         self._view_tabs.setTabToolTip(_IDX_YAML, "YAML is valid" if valid else f"YAML syntax error:\n{detail}")
+
+    def _toggle_yaml_blink(self) -> None:
+        self._yaml_blink_on = not self._yaml_blink_on
+        self._view_tabs.setStyleSheet(
+            f"QTabBar::tab:last {{ background: {_YAML_ERR}; color: white; }}" if self._yaml_blink_on else ""
+        )
 
     def _populate_yamltextfield(self):
         """Sync both multiviews from the parameters dict."""
@@ -334,7 +258,7 @@ class AutotagApp(QtWidgets.QMainWindow):
         self._view_menu.addAction("Save &View", lambda: self._focus_save(self._views_dock, self._views_panel))
 
         self._help_menu = bar.addMenu("&Help")
-        self._help_menu.addAction("Show &Tour", self._start_tour)
+        self._help_menu.addAction("Show &Tour", self._tour.start)
 
     def _focus_save(self, dock: QtWidgets.QDockWidget, panel: LibraryPanel) -> None:
         """Reveal a library dock and focus its name field (Save shortcut)."""
@@ -343,22 +267,77 @@ class AutotagApp(QtWidgets.QMainWindow):
         panel.start_new()
 
     def _setup_toolbar(self) -> None:
-        """Build the editor-centric top toolbar."""
-        tb = QtWidgets.QToolBar("Main")
-        tb.setObjectName("mainToolbar")
+        """Top toolbar row: the watch→tag pipeline read left-to-right.
+
+        Source (folder to watch) → filter (patterns + recursion) → output (the
+        sidecar suffix). Editing and panel chrome live on the second row.
+        """
+        tb = QtWidgets.QToolBar("Pipeline")
+        tb.setObjectName("pipelineToolbar")
         tb.setMovable(False)
         tb.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, tb)
         self._toolbar = tb
 
-        # -- library sidebar toggle --
+        # -- source: the folder to watch --
+        tb.addWidget(QtWidgets.QLabel("Folder: "))
+        self.ledFolder.setMinimumWidth(280)
+        self.ledFolder.setPlaceholderText("Folder to watch for new files")
+        self.ledFolder.setToolTip("Folder watched for newly created files")
+        tb.addWidget(self.ledFolder)
+        tb.addWidget(self.btnBrowse)
+        tb.addWidget(self.btnActivate)
+        tb.addSeparator()
+
+        # -- filter: which files get tagged --
+        self._patterns_label = QtWidgets.QLabel("Patterns: ")
+        tb.addWidget(self._patterns_label)
+        self.ledFilePatterns.setMinimumWidth(150)
+        self.ledFilePatterns.setToolTip("Comma-separated, e.g. *.csv,*.tsv (empty = all files)")
+        tb.addWidget(self.ledFilePatterns)
+        tb.addWidget(self.cbRecursiveWatch)
+        tb.addSeparator()
+
+        # -- output: the sidecar file-name ending --
+        self._suffix_label = QtWidgets.QLabel("Suffix: ")
+        tb.addWidget(self._suffix_label)
+        self.ledMetaSuffix.setMaximumWidth(120)
+        self.ledMetaSuffix.setToolTip("Ending appended to the sidecar file name (empty = .metadata.yaml)")
+        tb.addWidget(self.ledMetaSuffix)
+
+    def _setup_settings_toolbar(self) -> None:
+        """Second toolbar row: the library sidebar and panel toggles, grouped at the left."""
+        self.addToolBarBreak(QtCore.Qt.ToolBarArea.TopToolBarArea)
+        tb = QtWidgets.QToolBar("Panels")
+        tb.setObjectName("panelsToolbar")
+        tb.setMovable(False)
+        tb.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, tb)
+        self._settings_toolbar = tb
+
+        # -- library sidebar toggle, with the drop-zone / log toggles beside it --
         self._act_sidebar = QtGui.QAction("☰ Library", self, checkable=True)
         self._act_sidebar.setChecked(True)
         self._act_sidebar.setToolTip("Show or hide the library sidebar")
         self._act_sidebar.toggled.connect(self._set_library_visible)
         tb.addAction(self._act_sidebar)
+        tb.addAction(self._dropzone_toggle)
+        tb.addAction(self._log_toggle)
 
-        # -- Form / YAML view switch: sits at the far left, above the sidebar --
+    def _setup_editor_area(self) -> None:
+        """Fill the central area with a top bar (view switch + live file) over the stack.
+
+        The Form/YAML `QTabBar` and the live-file controls sit directly above the
+        Form/raw-YAML `QStackedWidget`, so the view controls travel with the editor.
+        """
+        container_layout = self.editorContainer.layout()
+
+        top_bar = QtWidgets.QWidget()
+        top_bar.setObjectName("editorTopBar")
+        bar = QtWidgets.QHBoxLayout(top_bar)
+        bar.setContentsMargins(0, 0, 0, 0)
+
+        # -- Form / YAML view switch, at the far left of the editor --
         self._view_tabs = QtWidgets.QTabBar()
         self._view_tabs.setDocumentMode(True)
         self._view_tabs.setDrawBase(False)
@@ -367,53 +346,21 @@ class AutotagApp(QtWidgets.QMainWindow):
         self._view_tabs.setTabToolTip(_IDX_FORM, "Structured form editor")
         self._view_tabs.setTabToolTip(_IDX_YAML, "Raw YAML editor")
         self._view_tabs.currentChanged.connect(self._stack.setCurrentIndex)
-        tb.addWidget(self._view_tabs)
-        tb.addSeparator()
+        bar.addWidget(self._view_tabs)
+        bar.addStretch(1)
 
-        # -- watch controls --
-        tb.addWidget(QtWidgets.QLabel("Folder: "))
-        self.ledFolder.setMinimumWidth(280)
-        self.ledFolder.setPlaceholderText("Folder to watch for new files")
-        self.ledFolder.setToolTip("Folder watched for newly created files")
-        tb.addWidget(self.ledFolder)
-        tb.addWidget(self.btnBrowse)
-        tb.addWidget(self.btnActivate)
+        # -- live file kept in sync with the editor, at the right --
+        bar.addWidget(QtWidgets.QLabel("Live file: "))
+        self.ledTemporaryLoc.setMinimumWidth(240)
+        bar.addWidget(self.ledTemporaryLoc)
+        bar.addWidget(self.btnSelectTemporaryFile)
+        bar.addWidget(self.btnOpenTemporaryFile)
+        bar.addWidget(self.btnUseTemporaryFile)
 
-        # -- push panel toggles to the right --
-        spacer = QtWidgets.QWidget()
-        spacer.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
-        tb.addWidget(spacer)
-
-        tb.addAction(self._dropzone_toggle)
-        tb.addAction(self._log_toggle)
+        container_layout.addWidget(top_bar)
+        container_layout.addWidget(self._stack)
 
         self._set_yaml_status(True)
-
-    def _setup_settings_toolbar(self) -> None:
-        """Second toolbar row: watch patterns/recursive and the live-file controls."""
-        self.addToolBarBreak(QtCore.Qt.ToolBarArea.TopToolBarArea)
-        tb = QtWidgets.QToolBar("Watch & live file")
-        tb.setObjectName("settingsToolbar")
-        tb.setMovable(False)
-        self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, tb)
-        self._settings_toolbar = tb
-
-        tb.addWidget(QtWidgets.QLabel("Patterns: "))
-        self.ledFilePatterns.setMinimumWidth(150)
-        self.ledFilePatterns.setToolTip("Comma-separated, e.g. *.csv,*.tsv (empty = all files)")
-        tb.addWidget(self.ledFilePatterns)
-        tb.addWidget(self.cbRecursiveWatch)
-        tb.addSeparator()
-        tb.addWidget(QtWidgets.QLabel("Suffix: "))
-        self.ledMetaSuffix.setMaximumWidth(120)
-        self.ledMetaSuffix.setToolTip("Ending appended to the sidecar file name (empty = .meta.yaml)")
-        tb.addWidget(self.ledMetaSuffix)
-        tb.addSeparator()
-        tb.addWidget(QtWidgets.QLabel("Live file: "))
-        self.ledTemporaryLoc.setMinimumWidth(240)
-        tb.addWidget(self.ledTemporaryLoc)
-        tb.addWidget(self.btnSelectTemporaryFile)
-        tb.addWidget(self.btnUseTemporaryFile)
 
     def _toggle_view(self) -> None:
         """Flip between Form and YAML (bound to Ctrl+Tab)."""
@@ -474,8 +421,8 @@ class AutotagApp(QtWidgets.QMainWindow):
         self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self._views_dock)
 
         # Stack the three library panels as tabs in the left rail, tabs on top.
-        self.tabifyDockWidget(self._snippet_dock, self._templates_dock)
-        self.tabifyDockWidget(self._templates_dock, self._views_dock)
+        self.tabifyDockWidget(self._templates_dock, self._snippet_dock)
+        self.tabifyDockWidget(self._snippet_dock, self._views_dock)
         self.setTabPosition(
             QtCore.Qt.DockWidgetArea.LeftDockWidgetArea,
             QtWidgets.QTabWidget.TabPosition.North,
@@ -699,7 +646,24 @@ class AutotagApp(QtWidgets.QMainWindow):
         if temporary_file:
             self.ledTemporaryLoc.setText(temporary_file)
             self._write_temporary_file()
+            # The file exists only after the write above, so refresh the buttons
+            # that gate on its existence (textChanged fired before it was created).
+            self._enable_use()
             logger.info("changed temporary file to %s", temporary_file)
+
+    def open_temporary_file(self):
+        """Launch the OS default editor on the live file."""
+        temporary_file = self.ledTemporaryLoc.text()
+        if not temporary_file or not Path(temporary_file).exists():
+            return
+        url = QtCore.QUrl.fromLocalFile(temporary_file)
+        if QtGui.QDesktopServices.openUrl(url):
+            logger.info("opened %s in the default editor", temporary_file)
+        else:
+            logger.error("could not open %s in an external editor", temporary_file)
+            QtWidgets.QMessageBox.warning(
+                self, "Open Live File", f"No application is available to open:\n{temporary_file}"
+            )
 
     def toggle_watch_temporary_file(self):
         """Toggle temporary file watching."""
@@ -749,11 +713,10 @@ class AutotagApp(QtWidgets.QMainWindow):
         self._temporary_write_timer.stop()
 
     def _enable_use(self):
-        """Enable the 'Use' button when the temporary file path is valid."""
-        if Path(self.ledTemporaryLoc.text()).exists():
-            self.btnUseTemporaryFile.setEnabled(True)
-        else:
-            self.btnUseTemporaryFile.setDisabled(True)
+        """Enable the 'Use' and 'Open' buttons when the live-file path exists."""
+        exists = bool(self.ledTemporaryLoc.text()) and Path(self.ledTemporaryLoc.text()).exists()
+        self.btnUseTemporaryFile.setEnabled(exists)
+        self.btnOpenTemporaryFile.setEnabled(exists)
 
     # -- folder watching ---------------------------------------------------
 
