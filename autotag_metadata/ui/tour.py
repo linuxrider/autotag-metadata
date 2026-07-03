@@ -40,7 +40,7 @@ class TourStep:
 
     title: str
     text: str
-    targets: list[QtWidgets.QWidget] = field(default_factory=list)
+    targets: list[QtWidgets.QWidget | Callable[[], QtCore.QRect | None]] = field(default_factory=list)
     on_enter: Callable[[], None] | None = None
 
 
@@ -59,6 +59,7 @@ class TourOverlay(QtWidgets.QWidget):
         super().__init__(parent)
         self._steps = steps
         self._index = 0
+        self._drag_offset: QtCore.QPoint | None = None
         self.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self._build_bubble()
         parent.installEventFilter(self)
@@ -125,6 +126,8 @@ class TourOverlay(QtWidgets.QWidget):
         self._btn_skip = QtWidgets.QPushButton("Skip", self._bubble)
         self._btn_back = QtWidgets.QPushButton("Back", self._bubble)
         self._btn_next = QtWidgets.QPushButton("Next", self._bubble)
+        for btn in (self._btn_skip, self._btn_back, self._btn_next):
+            btn.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
         self._btn_next.setDefault(True)
         self._btn_skip.clicked.connect(self._finish)
         self._btn_back.clicked.connect(self._go_back)
@@ -133,6 +136,8 @@ class TourOverlay(QtWidgets.QWidget):
         row.addWidget(self._btn_back)
         row.addWidget(self._btn_next)
         lay.addLayout(row)
+        self._bubble.setCursor(QtCore.Qt.CursorShape.SizeAllCursor)
+        self._bubble.installEventFilter(self)
 
     # -- navigation --------------------------------------------------------
 
@@ -149,9 +154,11 @@ class TourOverlay(QtWidgets.QWidget):
             self._show_step()
 
     def _show_step(self) -> None:
+        self._drag_offset = None
         step = self._steps[self._index]
         if step.on_enter is not None:
             step.on_enter()
+        self.raise_()
         self._title.setText(step.title)
         self._body.setText(step.text)
         self._progress.setText(f"{self._index + 1} / {len(self._steps)}")
@@ -165,18 +172,32 @@ class TourOverlay(QtWidgets.QWidget):
 
     # -- geometry ----------------------------------------------------------
 
-    def _target_rect(self) -> QtCore.QRect | None:
-        """Union rect of the current step's targets, in overlay coordinates."""
+    def _target_rects(self) -> list[QtCore.QRect]:
+        """Individual rects for each target of the current step, in overlay coordinates."""
         step = self._steps[self._index]
         root = self.parentWidget()
-        rect: QtCore.QRect | None = None
-        for widget in step.targets:
-            if widget is None or not widget.isVisible():
-                continue
-            top_left = widget.mapTo(root, QtCore.QPoint(0, 0))
-            r = QtCore.QRect(top_left, widget.size())
-            rect = r if rect is None else rect.united(r)
-        return rect
+        rects: list[QtCore.QRect] = []
+        for item in step.targets:
+            if callable(item):
+                r = item()
+                if r is not None:
+                    rects.append(r)
+            else:
+                if item is None or not item.isVisible():
+                    continue
+                top_left = item.mapTo(root, QtCore.QPoint(0, 0))
+                rects.append(QtCore.QRect(top_left, item.size()))
+        return rects
+
+    def _target_rect(self) -> QtCore.QRect | None:
+        """Union of all target rects — used for bubble positioning."""
+        rects = self._target_rects()
+        if not rects:
+            return None
+        result = rects[0]
+        for r in rects[1:]:
+            result = result.united(r)
+        return result
 
     def _reposition(self) -> None:
         target = self._target_rect()
@@ -214,6 +235,30 @@ class TourOverlay(QtWidgets.QWidget):
             self.setGeometry(self.parentWidget().rect())
             self._reposition()
             self.update()
+            return super().eventFilter(obj, event)
+
+        if obj is self._bubble:
+            t = event.type()
+            if t == QtCore.QEvent.Type.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.LeftButton:
+                # pos() is already in _bubble coords (labels propagate up; buttons consume their own events)
+                click_in_overlay = self._bubble.mapTo(self, event.pos())
+                self._drag_offset = click_in_overlay - self._bubble.pos()
+                self._bubble.grabMouse()
+                return True
+            if t == QtCore.QEvent.Type.MouseMove and self._drag_offset is not None:
+                pos_in_overlay = self._bubble.mapTo(self, event.pos())
+                new_tl = pos_in_overlay - self._drag_offset
+                area = self.rect()
+                bw, bh = self._bubble.width(), self._bubble.height()
+                nx = max(area.left(), min(new_tl.x(), area.right() - bw))
+                ny = max(area.top(), min(new_tl.y(), area.bottom() - bh))
+                self._bubble.move(nx, ny)
+                return True
+            if t == QtCore.QEvent.Type.MouseButtonRelease and self._drag_offset is not None:
+                self._bubble.releaseMouse()
+                self._drag_offset = None
+                return True
+
         return super().eventFilter(obj, event)
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
@@ -236,20 +281,19 @@ class TourOverlay(QtWidgets.QWidget):
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
 
         scrim = QtGui.QColor(0, 0, 0, 160)
-        target = self._target_rect()
-        if target is None:
+        rects = self._target_rects()
+        if not rects:
             painter.fillRect(self.rect(), scrim)
             painter.end()
             return
 
-        hole = QtCore.QRectF(target.adjusted(-_PAD, -_PAD, _PAD, _PAD))
         path = QtGui.QPainterPath()
         path.addRect(QtCore.QRectF(self.rect()))
         cut = QtGui.QPainterPath()
-        cut.addRoundedRect(hole, 6, 6)
+        cut.setFillRule(QtCore.Qt.FillRule.WindingFill)
+        holes = [QtCore.QRectF(r.adjusted(-_PAD, -_PAD, _PAD, _PAD)) for r in rects]
+        for hole in holes:
+            cut.addRoundedRect(hole, 6, 6)
         painter.fillPath(path.subtracted(cut), scrim)
 
-        accent = self.palette().color(QtGui.QPalette.ColorRole.Highlight)
-        painter.setPen(QtGui.QPen(accent, 2))
-        painter.drawRoundedRect(hole, 6, 6)
         painter.end()

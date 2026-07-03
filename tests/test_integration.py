@@ -18,7 +18,7 @@ def test_full_pipeline(tmp_path):
     assert result is not None
     write_metadata(str(data_file), result)
 
-    meta_file = tmp_path / "measurement_001.csv.meta.yaml"
+    meta_file = tmp_path / "measurement_001.csv.metadata.yaml"
     assert meta_file.exists()
 
     loaded = yaml.safe_load(meta_file.read_text(encoding="utf-8"))

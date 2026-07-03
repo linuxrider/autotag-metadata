@@ -37,7 +37,7 @@ def test_monitor_detects_creation_and_produces_metadata(tmp_path):
         assert result is not None
         write_metadata(received[0], params)
 
-        meta_file = tmp_path / "measurement.csv.meta.yaml"
+        meta_file = tmp_path / "measurement.csv.metadata.yaml"
         assert meta_file.exists()
 
         loaded = yaml.safe_load(meta_file.read_text(encoding="utf-8"))

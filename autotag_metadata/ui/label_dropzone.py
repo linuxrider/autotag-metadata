@@ -30,7 +30,7 @@ class LabelDropzone(QLabel):
     files_submitted = pyqtSignal(list)  # list[str] of local file paths
 
     def __init__(self, parent=None):
-        super().__init__("Drop files here\nto write their .meta.yaml", parent)
+        super().__init__("Drop files here\nto write their .metadata.yaml", parent)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setWordWrap(True)
         self.setAcceptDrops(True)

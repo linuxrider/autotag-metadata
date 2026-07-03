@@ -128,8 +128,8 @@ class Config:
 
     @property
     def metadata_suffix(self) -> str:
-        """Ending appended to a measurement file name for its sidecar (e.g. ``.meta.yaml``)."""
-        return self._config.get("metadataSuffix", ".meta.yaml")
+        """Ending appended to a measurement file name for its sidecar (e.g. ``.metadata.yaml``)."""
+        return self._config.get("metadataSuffix", ".metadata.yaml")
 
     @metadata_suffix.setter
     def metadata_suffix(self, value: str):

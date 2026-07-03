@@ -64,7 +64,7 @@ autotag_metadata/
     config.py            typed accessors over a TOML config file; stores templates/snippets/views
     file_handling.py     filesystem monitoring via watchfiles
     core/                (no Qt)
-        metadata_writer.py   file hashing + .meta.yaml writing
+        metadata_writer.py   file hashing + .metadata.yaml writing
         yaml_utils.py        YAML parse / validate / dump
         yaml_document.py     subtree get/set + path-anchored snippet merging
     ui/

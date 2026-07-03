@@ -86,7 +86,7 @@ class AutotagApp(QtWidgets.QMainWindow):
         self.ledFilePatterns.setPlaceholderText("*.csv,*.tsv (empty = all)")
         self.cbRecursiveWatch = QtWidgets.QCheckBox("Recursive")
         self.ledMetaSuffix = QtWidgets.QLineEdit()
-        self.ledMetaSuffix.setPlaceholderText(".meta.yaml")
+        self.ledMetaSuffix.setPlaceholderText(".metadata.yaml")
         # Restrict to filename-safe characters so the suffix can never introduce a
         # path separator or a character that is illegal in a file name (Windows).
         self.ledMetaSuffix.setValidator(
@@ -178,7 +178,7 @@ class AutotagApp(QtWidgets.QMainWindow):
         return [
             TourStep(
                 "Welcome to Autotag Metadata",
-                "This tool watches a folder and writes a <code>.meta.yaml</code> sidecar next to "
+                "This tool watches a folder and writes a <code>.metadata.yaml</code> sidecar next to "
                 "every new file, using the metadata you prepare here. Let's walk through it.",
             ),
             TourStep(
@@ -514,7 +514,7 @@ class AutotagApp(QtWidgets.QMainWindow):
         """Tag each dropped file; recurse into dropped folders (honoring file patterns).
 
         A directly dropped file is tagged regardless of the pattern filter; files
-        found inside a dropped folder must match it. ``.meta.yaml`` files are
+        found inside a dropped folder must match it. ``.metadata.yaml`` files are
         skipped.
         """
         patterns = self._file_pattern_list()
@@ -542,17 +542,17 @@ class AutotagApp(QtWidgets.QMainWindow):
         return [p.strip() for p in text.split(",") if p.strip()] or None
 
     def _metadata_suffix(self) -> str:
-        """Sidecar file-name ending; falls back to ``.meta.yaml`` when unusable.
+        """Sidecar file-name ending; falls back to ``.metadata.yaml`` when unusable.
 
         The field validator blocks illegal keystrokes, but ``setText`` (restoring a
         hand-edited or older config) bypasses it, so unsafe characters are stripped
         here too. A leading dot is enforced so the suffix reads as a file extension
-        (``meta.yaml`` → ``.meta.yaml``) rather than fusing onto the file name. An
+        (``metadata.yaml`` → ``.metadata.yaml``) rather than fusing onto the file name. An
         empty result would make the sidecar path equal the source file and overwrite
         it, so the default is substituted for a blank/stripped field.
         """
         safe = re.sub(r"[^A-Za-z0-9._-]", "", self.ledMetaSuffix.text()).lstrip(".")
-        return f".{safe}" if safe else ".meta.yaml"
+        return f".{safe}" if safe else ".metadata.yaml"
 
     @staticmethod
     def _matches_pattern(name: str, patterns: list[str] | None) -> bool:

@@ -29,7 +29,7 @@ def test_config_defaults(config):
     assert config.watch_folder == ""
     assert config.temporary_file == ""
     assert config.file_patterns == ""
-    assert config.metadata_suffix == ".meta.yaml"
+    assert config.metadata_suffix == ".metadata.yaml"
     assert config.recursive_watching is False
     assert config.window_geometry is None
     assert config.template_names == []

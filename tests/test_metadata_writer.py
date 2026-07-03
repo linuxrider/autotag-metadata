@@ -32,7 +32,7 @@ def test_write_metadata_creates_sidecar(tmp_path):
     f.write_bytes(b"a,b,c\n1,2,3")
     params = {"experiment": "test", "value": 42}
     write_metadata(str(f), params)
-    meta = tmp_path / "data.csv.meta.yaml"
+    meta = tmp_path / "data.csv.metadata.yaml"
     assert meta.exists()
     loaded = yaml.safe_load(meta.read_text(encoding="utf-8"))
     assert loaded == {"experiment": "test", "value": 42}
@@ -44,7 +44,7 @@ def test_write_metadata_custom_suffix(tmp_path):
     write_metadata(str(f), {"experiment": "test"}, suffix=".metadata.yml")
     meta = tmp_path / "data.csv.metadata.yml"
     assert meta.exists()
-    assert not (tmp_path / "data.csv.meta.yaml").exists()
+    assert not (tmp_path / "data.csv.metadata.yaml").exists()
     assert yaml.safe_load(meta.read_text(encoding="utf-8")) == {"experiment": "test"}
 
 
@@ -53,7 +53,7 @@ def test_write_metadata_preserves_key_order(tmp_path):
     f.write_bytes(b"x")
     params = {"z_key": 1, "a_key": 2, "m_key": 3}
     write_metadata(str(f), params)
-    content = (tmp_path / "data.csv.meta.yaml").read_text(encoding="utf-8")
+    content = (tmp_path / "data.csv.metadata.yaml").read_text(encoding="utf-8")
     assert content.index("z_key") < content.index("a_key") < content.index("m_key")
 
 
