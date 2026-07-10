@@ -117,8 +117,9 @@ def _input_stylesheet(val, palette: QtGui.QPalette) -> str:
         " border-radius: 0px;"
         " padding: 2px 4px;"
     )
-    cls = type(val).__name__
-    return f"Q{cls.capitalize()}Edit {{ {base} }} QSpinBox {{ {base} }} QDoubleSpinBox {{ {base} }}"
+    # Every scalar/list leaf now renders as a QLineEdit (bool is the lone exception,
+    # a QCheckBox that needs no border); a single selector covers them all.
+    return f"QLineEdit {{ {base} }}"
 
 
 # ---------------------------------------------------------------------------
@@ -459,6 +460,26 @@ def _make_scalar_item_row(text: str, zoom_path: str, on_zoom) -> QtWidgets.QWidg
     return row
 
 
+def _integer_validator(parent: QtWidgets.QWidget) -> QtGui.QRegularExpressionValidator:
+    """Validator accepting an optionally-signed integer of arbitrary length.
+
+    QIntValidator/QSpinBox cap at 32-bit; metadata may hold larger ints, so match
+    ``-?\\d+`` (plus the empty string, to allow clearing) instead.
+    """
+    rx = QtCore.QRegularExpression(r"-?\d*")
+    return QtGui.QRegularExpressionValidator(rx, parent)
+
+
+def _float_validator(parent: QtWidgets.QWidget) -> QtGui.QRegularExpressionValidator:
+    """Validator accepting a signed decimal/scientific float of arbitrary length.
+
+    QDoubleSpinBox caps range and rounds to a fixed decimal count; a plain field
+    matching ``-?\\d*\\.?\\d*([eE][+-]?\\d+)?`` keeps full precision and magnitude.
+    """
+    rx = QtCore.QRegularExpression(r"-?\d*\.?\d*([eE][+-]?\d+)?")
+    return QtGui.QRegularExpressionValidator(rx, parent)
+
+
 def _make_input_widget(val) -> QtWidgets.QWidget:
     w = _build_input_widget(val)
     # Allow the input to shrink below its size hint so a narrow panel never
@@ -473,15 +494,18 @@ def _build_input_widget(val) -> QtWidgets.QWidget:
         w.setChecked(bool(val))
         return w
     if isinstance(val, int):
-        w = QtWidgets.QSpinBox()
-        w.setRange(-2_147_483_648, 2_147_483_647)
-        w.setValue(val)
+        # QLineEdit + integer validator, not QSpinBox: spinbox is capped at 32-bit,
+        # but metadata may hold arbitrarily long integers (Python ints are unbounded).
+        w = QtWidgets.QLineEdit()
+        w.setValidator(_integer_validator(w))
+        w.setText(str(val))
         return w
     if isinstance(val, float):
-        w = QtWidgets.QDoubleSpinBox()
-        w.setRange(-1e18, 1e18)
-        w.setDecimals(6)
-        w.setValue(val)
+        # QLineEdit + float validator, not QDoubleSpinBox: the spinbox clamps range
+        # and rounds to fixed decimals; a text field keeps full precision/magnitude.
+        w = QtWidgets.QLineEdit()
+        w.setValidator(_float_validator(w))
+        w.setText(repr(val))
         return w
     if isinstance(val, list):
         w = QtWidgets.QLineEdit()
@@ -497,9 +521,13 @@ def _connect_widget(widget, val, node: dict, key: str, callback) -> None:
     if isinstance(val, bool):
         widget.stateChanged.connect(lambda state, n=node, k=key: _update(n, k, bool(state), callback))
     elif isinstance(val, int):
-        widget.valueChanged.connect(lambda v, n=node, k=key: _update(n, k, v, callback))
+        widget.editingFinished.connect(
+            lambda w=widget, n=node, k=key: _update(n, k, _parse_int(w.text()), callback)
+        )
     elif isinstance(val, float):
-        widget.valueChanged.connect(lambda v, n=node, k=key: _update(n, k, v, callback))
+        widget.editingFinished.connect(
+            lambda w=widget, n=node, k=key: _update(n, k, _parse_float(w.text()), callback)
+        )
     elif isinstance(val, list):
         widget.editingFinished.connect(
             lambda w=widget, n=node, k=key: _update(n, k, _parse_list(w.text()), callback)
@@ -511,6 +539,22 @@ def _connect_widget(widget, val, node: dict, key: str, callback) -> None:
 def _update(node: dict, key: str, value, callback) -> None:
     node[key] = value
     callback()
+
+
+def _parse_int(text: str) -> int:
+    """Parse the integer field back to an int; blank / lone ``-`` fall back to 0."""
+    try:
+        return int(text)
+    except ValueError:
+        return 0
+
+
+def _parse_float(text: str) -> float:
+    """Parse the float field back to a float; blank / partial input falls back to 0.0."""
+    try:
+        return float(text)
+    except ValueError:
+        return 0.0
 
 
 def _parse_list(text: str) -> list:
