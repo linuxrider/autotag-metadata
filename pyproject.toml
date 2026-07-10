@@ -99,6 +99,7 @@ lint-check = { depends-on = ["pylint", "format-check", "isort-check", "typecheck
 
 [tool.pixi.feature.doc.dependencies]
 jupytext = "*"
+make = "*"
 myst-nb = "*"
 myst-parser = "*"
 sphinx = "*"
