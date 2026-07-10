@@ -16,15 +16,14 @@ jobs:
         with: { pixi-version: v0.71.2 }
       - name: build documentation
         run: |
-          pixi run doc
+          pixi run -e dev doc
           cd doc
           mv generated/html generated/html_
           mkdir generated/html
           mv generated/html_ generated/html/autotag-metadata
           touch generated/html/autotag-metadata/.nojekyll
       - name: detect broken links
-        shell: pixi run bash -e {0}
-        run: pixi run linkcheck
+        run: pixi run -e dev linkcheck
       - uses: JamesIves/github-pages-deploy-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
