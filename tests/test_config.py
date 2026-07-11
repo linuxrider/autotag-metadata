@@ -30,6 +30,7 @@ def test_config_defaults(config):
     assert config.temporary_file == ""
     assert config.file_patterns == ""
     assert config.metadata_suffix == ".metadata.yaml"
+    assert config.metadata_format == "yaml"
     assert config.recursive_watching is False
     assert config.window_geometry is None
     assert config.template_names == []
@@ -48,6 +49,11 @@ def test_config_recursive_watching(config):
 def test_config_metadata_suffix(config):
     config.metadata_suffix = ".metadata.yml"
     assert config.metadata_suffix == ".metadata.yml"
+
+
+def test_config_metadata_format(config):
+    config.metadata_format = "json"
+    assert config.metadata_format == "json"
 
 
 def test_config_save_and_load(tmp_path, monkeypatch):

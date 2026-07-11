@@ -19,6 +19,8 @@
 #  <https://www.gnu.org/licenses/>.
 # ********************************************************************
 
+import json
+
 import yaml
 from yamllint import linter
 
@@ -46,6 +48,16 @@ def dump_yaml_to_file(data, filepath):
     """Write *data* as YAML to *filepath*."""
     with open(filepath, "w", encoding="utf-8") as f:
         yaml.dump(data, f, sort_keys=False, allow_unicode=True)
+
+
+def dump_json(data):
+    """Serialize *data* to a pretty-printed JSON string (keeps key order, unicode)."""
+    return json.dumps(data, indent=2, ensure_ascii=False)
+
+
+def parse_json(text):
+    """Parse a JSON string and return the resulting object."""
+    return json.loads(text)
 
 
 def _indent_of(line: str) -> int:

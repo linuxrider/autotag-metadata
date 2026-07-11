@@ -136,6 +136,15 @@ class Config:
         self._config["metadataSuffix"] = value
 
     @property
+    def metadata_format(self) -> str:
+        """Serialization format for the sidecar file: ``"yaml"`` or ``"json"``."""
+        return self._config.get("metadataFormat", "yaml")
+
+    @metadata_format.setter
+    def metadata_format(self, value: str):
+        self._config["metadataFormat"] = value
+
+    @property
     def recursive_watching(self) -> bool:
         """Whether to watch subdirectories recursively."""
         return bool(self._config.get("recursiveWatching", False))

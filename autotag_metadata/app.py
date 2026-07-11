@@ -31,7 +31,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets, uic
 from .config import Config
 from .core.metadata_writer import build_metadata, write_metadata
 from .core.yaml_document import non_destructive_merge, overwrite_merge
-from .core.yaml_utils import dump_yaml, dump_yaml_to_file, parse_yaml
+from .core.yaml_utils import dump_json, dump_yaml, dump_yaml_to_file, parse_json, parse_yaml
 from .file_handling import FileMonitor
 from .ui.editable_list import EditableListView
 from .ui.guided_tour import GuidedTour
@@ -40,6 +40,7 @@ from .ui.library_panel import LibraryPanel
 from .ui.logger import LogHandler
 from .ui.snippets_list import SnippetsListView
 from .ui.yaml_multi_view import YamlMultiView
+from .ui.yaml_text_edit import YamlTextEdit
 from .ui.zoom_panels import ZoomFormView, ZoomTextView
 
 logger = logging.getLogger(__name__)
@@ -49,9 +50,10 @@ _ICON = _DIR / "autotag_metadata.png"
 
 _IDX_FORM = 0
 _IDX_YAML = 1
+_IDX_JSON = 2
 
-# Error indicator colour for the YAML tab background (read on light and dark).
-_YAML_ERR = "#e74c3c"
+# Error indicator colour for an editor tab whose syntax is invalid (light + dark).
+_SYNTAX_ERR = "#e74c3c"
 
 
 def _default_snippet_name(data) -> str:
@@ -78,10 +80,12 @@ class AutotagApp(QtWidgets.QMainWindow):
         # action; it only stores a reference and does nothing until start().
         self._tour = GuidedTour(self)
 
-        self._yaml_blink_timer = QtCore.QTimer(self)
-        self._yaml_blink_timer.setInterval(500)
-        self._yaml_blink_timer.timeout.connect(self._toggle_yaml_blink)
-        self._yaml_blink_on = False
+        # Editor tabs whose syntax is currently invalid, blinked red in unison.
+        self._error_tabs: set[int] = set()
+        self._blink_timer = QtCore.QTimer(self)
+        self._blink_timer.setInterval(500)
+        self._blink_timer.timeout.connect(self._toggle_tab_blink)
+        self._blink_on = False
 
         # Watch / live-file controls — kept under their original attribute names
         # so the handler methods stay unchanged. They live in the toolbars.
@@ -102,6 +106,11 @@ class AutotagApp(QtWidgets.QMainWindow):
         self.ledMetaSuffix.setValidator(
             QtGui.QRegularExpressionValidator(QtCore.QRegularExpression(r"[A-Za-z0-9._-]*"))
         )
+        self.cbMetaFormat = QtWidgets.QComboBox()
+        # userData holds the format key written by write_metadata; label is display-only.
+        self.cbMetaFormat.addItem("YAML", "yaml")
+        self.cbMetaFormat.addItem("JSON", "json")
+        self.cbMetaFormat.setToolTip("Serialization format of the sidecar file (independent of the suffix)")
 
         self.ledFolder = QtWidgets.QLineEdit()
         self.btnBrowse = QtWidgets.QPushButton("Browse…")
@@ -134,6 +143,12 @@ class AutotagApp(QtWidgets.QMainWindow):
         self._text_multiview.yaml_error.connect(self._on_yaml_error)
         self._form_multiview.set_layout(self.config.multiview_layout)
 
+        # JSON view: a single editor over the whole document (not path-tiled like
+        # the YAML multiview). JSON is a subset of YAML, so edits parse the same way.
+        self._json_edit = YamlTextEdit()
+        self._json_edit.textChanged.connect(self._on_json_edited)
+        self._json_syncing = False
+
         self._setup_snippet_dock()
         self._setup_dropzone()  # split below before the library docks tabify
         self._setup_library_docks()
@@ -142,6 +157,7 @@ class AutotagApp(QtWidgets.QMainWindow):
         self._stack = QtWidgets.QStackedWidget()
         self._stack.addWidget(self._form_multiview)  # index 0 — form
         self._stack.addWidget(self._text_multiview)  # index 1 — raw YAML
+        self._stack.addWidget(self._json_edit)  # index 2 — raw JSON
 
         self._setup_menus()
         self._setup_toolbar()
@@ -177,6 +193,8 @@ class AutotagApp(QtWidgets.QMainWindow):
         if self.config.file_patterns:
             self.ledFilePatterns.setText(self.config.file_patterns)
         self.ledMetaSuffix.setText(self.config.metadata_suffix)
+        idx = self.cbMetaFormat.findData(self.config.metadata_format)
+        self.cbMetaFormat.setCurrentIndex(idx if idx >= 0 else 0)
         self.cbRecursiveWatch.setChecked(self.config.recursive_watching)
 
     def closeEvent(self, event):
@@ -186,6 +204,7 @@ class AutotagApp(QtWidgets.QMainWindow):
         self.config.temporary_file = self.ledTemporaryLoc.text()
         self.config.file_patterns = self.ledFilePatterns.text()
         self.config.metadata_suffix = self._metadata_suffix()
+        self.config.metadata_format = self._metadata_format()
         self.config.recursive_watching = self.cbRecursiveWatch.isChecked()
         self.config.multiview_layout = self._form_multiview.get_layout()
         self.config.save_settings()
@@ -199,39 +218,101 @@ class AutotagApp(QtWidgets.QMainWindow):
     # -- tree / yaml synchronization ---------------------------------------
 
     def _on_yaml_error(self, detail: str) -> None:
-        self._set_yaml_status(False, detail)
+        self._set_tab_status(_IDX_YAML, False, "YAML", detail)
 
-    def _set_yaml_status(self, valid: bool, detail: str | None = None) -> None:
-        """Blink the YAML tab's background red while its syntax is invalid; clear it when valid."""
+    def _set_tab_status(self, index: int, valid: bool, label: str, detail: str | None = None) -> None:
+        """Blink *index*'s tab red while its syntax is invalid; clear it when valid.
+
+        Several editor tabs can be invalid at once (e.g. YAML and JSON), so the
+        erroring tabs are tracked in a set and blinked in unison by one timer.
+        """
         if valid:
-            self._yaml_blink_timer.stop()
-            self._yaml_blink_on = False
-            self._view_tabs.setStyleSheet("")
-        elif not self._yaml_blink_timer.isActive():
-            self._yaml_blink_timer.start()
-        self._view_tabs.setTabToolTip(_IDX_YAML, "YAML is valid" if valid else f"YAML syntax error:\n{detail}")
+            self._error_tabs.discard(index)
+            self._view_tabs.setTabTextColor(index, QtGui.QColor())  # reset to palette default
+            if not self._error_tabs:
+                self._blink_timer.stop()
+                self._blink_on = False
+        else:
+            self._error_tabs.add(index)
+            if not self._blink_timer.isActive():
+                self._blink_timer.start()
+        self._view_tabs.setTabToolTip(index, f"{label} is valid" if valid else f"{label} syntax error:\n{detail}")
 
-    def _toggle_yaml_blink(self) -> None:
-        self._yaml_blink_on = not self._yaml_blink_on
-        self._view_tabs.setStyleSheet(
-            f"QTabBar::tab:last {{ background: {_YAML_ERR}; color: white; }}" if self._yaml_blink_on else ""
-        )
+    def _toggle_tab_blink(self) -> None:
+        self._blink_on = not self._blink_on
+        color = QtGui.QColor(_SYNTAX_ERR) if self._blink_on else QtGui.QColor()
+        for index in self._error_tabs:
+            self._view_tabs.setTabTextColor(index, color)
 
-    def _populate_yamltextfield(self):
-        """Sync both multiviews from the parameters dict."""
+    def _sync_all_editors(self):
+        """Sync both multiviews and the JSON view from the parameters dict."""
         self._text_multiview.set_document(self.parameters)
         self._form_multiview.set_document(self.parameters)
+        self._refresh_json_view()
+
+    def _refresh_json_view(self) -> None:
+        """Re-render the JSON editor from the current parameters (only when it is showing).
+
+        Rendering only the visible tab avoids fighting the user's cursor in a
+        hidden editor and skips needless serialization on every keystroke elsewhere.
+        """
+        if self._view_tabs.currentIndex() != _IDX_JSON:
+            return
+        text = dump_json(self.parameters)
+        if self._json_edit.toPlainText() == text:
+            return
+        self._json_syncing = True
+        pos = self._json_edit.textCursor().position()
+        self._json_edit.setPlainText(text)
+        cursor = self._json_edit.textCursor()
+        cursor.setPosition(min(pos, len(text)))
+        self._json_edit.setTextCursor(cursor)
+        self._json_edit.set_error_line(None)
+        self._json_syncing = False
+
+    def _on_view_tab_changed(self, index: int) -> None:
+        """When the JSON tab becomes visible, render the latest document into it."""
+        if index == _IDX_JSON:
+            self._refresh_json_view()
+
+    def _on_json_edited(self) -> None:
+        """Parse the JSON editor and push valid edits into the shared document."""
+        if self._json_syncing:
+            return
+        text = self._json_edit.toPlainText().strip()
+        if not text:
+            self._json_edit.set_error_line(None)
+            self._set_tab_status(_IDX_JSON, True, "JSON")
+            return
+        try:
+            parsed = parse_json(text)
+        except ValueError as exc:
+            line = getattr(exc, "lineno", None)
+            self._json_edit.set_error_line(line - 1 if line else None)
+            self._set_tab_status(_IDX_JSON, False, "JSON", str(exc))
+            return
+        self._json_edit.set_error_line(None)
+        self._set_tab_status(_IDX_JSON, True, "JSON")
+        if not isinstance(parsed, dict):
+            return
+        self.parameters = parsed
+        self._form_multiview.set_document(parsed)
+        self._text_multiview.set_document(parsed)
+        if self.btnUseTemporaryFile.isChecked():
+            self._hidden_write_temporary_file()
 
     @QtCore.pyqtSlot(dict)
     def _on_form_multiview_changed(self, data: dict) -> None:
         self.parameters = data
         self._text_multiview.set_document(data)
+        self._refresh_json_view()
 
     @QtCore.pyqtSlot(dict)
     def _on_text_multiview_changed(self, data: dict) -> None:
         self.parameters = data
         self._form_multiview.set_document(data)
-        self._set_yaml_status(True)
+        self._refresh_json_view()
+        self._set_tab_status(_IDX_YAML, True, "YAML")
         if self.btnUseTemporaryFile.isChecked():
             self._hidden_write_temporary_file()
 
@@ -304,6 +385,9 @@ class AutotagApp(QtWidgets.QMainWindow):
         self.ledMetaSuffix.setMaximumWidth(120)
         self.ledMetaSuffix.setToolTip("Ending appended to the sidecar file name (empty = .metadata.yaml)")
         tb.addWidget(self.ledMetaSuffix)
+        self._format_label = QtWidgets.QLabel("Format: ")
+        tb.addWidget(self._format_label)
+        tb.addWidget(self.cbMetaFormat)
 
     def _setup_settings_toolbar(self) -> None:
         """Second toolbar row: the library sidebar and panel toggles, grouped at the left."""
@@ -343,9 +427,12 @@ class AutotagApp(QtWidgets.QMainWindow):
         self._view_tabs.setDrawBase(False)
         self._view_tabs.addTab("⊞ Form")
         self._view_tabs.addTab("{ } YAML")
+        self._view_tabs.addTab("{ } JSON")
         self._view_tabs.setTabToolTip(_IDX_FORM, "Structured form editor")
         self._view_tabs.setTabToolTip(_IDX_YAML, "Raw YAML editor")
+        self._view_tabs.setTabToolTip(_IDX_JSON, "Raw JSON editor (whole document)")
         self._view_tabs.currentChanged.connect(self._stack.setCurrentIndex)
+        self._view_tabs.currentChanged.connect(self._on_view_tab_changed)
         bar.addWidget(self._view_tabs)
         bar.addStretch(1)
 
@@ -360,12 +447,12 @@ class AutotagApp(QtWidgets.QMainWindow):
         container_layout.addWidget(top_bar)
         container_layout.addWidget(self._stack)
 
-        self._set_yaml_status(True)
+        self._set_tab_status(_IDX_YAML, True, "YAML")
 
     def _toggle_view(self) -> None:
-        """Flip between Form and YAML (bound to Ctrl+Tab)."""
-        nxt = _IDX_YAML if self._view_tabs.currentIndex() == _IDX_FORM else _IDX_FORM
-        self._view_tabs.setCurrentIndex(nxt)
+        """Cycle Form → YAML → JSON → Form (bound to Ctrl+Tab)."""
+        count = self._view_tabs.count()
+        self._view_tabs.setCurrentIndex((self._view_tabs.currentIndex() + 1) % count)
 
     def _set_library_visible(self, visible: bool) -> None:
         """Show or hide the whole library sidebar (Snippets/Templates/Views)."""
@@ -501,6 +588,10 @@ class AutotagApp(QtWidgets.QMainWindow):
         safe = re.sub(r"[^A-Za-z0-9._-]", "", self.ledMetaSuffix.text()).lstrip(".")
         return f".{safe}" if safe else ".metadata.yaml"
 
+    def _metadata_format(self) -> str:
+        """Selected sidecar serialization format (``"yaml"`` or ``"json"``)."""
+        return self.cbMetaFormat.currentData() or "yaml"
+
     @staticmethod
     def _matches_pattern(name: str, patterns: list[str] | None) -> bool:
         return patterns is None or any(fnmatch.fnmatch(name, pat) for pat in patterns)
@@ -557,7 +648,7 @@ class AutotagApp(QtWidgets.QMainWindow):
             return
         merge = overwrite_merge if overwrite else non_destructive_merge
         self.parameters = merge(self.parameters or {}, data)
-        self._populate_yamltextfield()
+        self._sync_all_editors()
         self._form_multiview.set_document(self.parameters)
 
     def _unique_snippet_name(self, base: str) -> str:
@@ -617,7 +708,7 @@ class AutotagApp(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "Load Template Failed", str(exc))
             return
         self.parameters = parse_yaml(yaml_text)
-        self._populate_yamltextfield()
+        self._sync_all_editors()
         self._form_multiview.set_document(self.parameters)
 
     def store_template(self, name: str) -> None:
@@ -694,7 +785,7 @@ class AutotagApp(QtWidgets.QMainWindow):
             return
         if self.parameters is None:
             self.parameters = {}
-        self._populate_yamltextfield()
+        self._sync_all_editors()
         self._form_multiview.set_document(self.parameters)
 
     def _write_temporary_file(self):
@@ -776,7 +867,7 @@ class AutotagApp(QtWidgets.QMainWindow):
             logger.info("created %s", msg)
             result = build_metadata(msg, self.parameters)
             if result is not None:
-                write_metadata(msg, self.parameters, suffix)
+                write_metadata(msg, self.parameters, suffix, self._metadata_format())
 
     # -- logging -----------------------------------------------------------
 

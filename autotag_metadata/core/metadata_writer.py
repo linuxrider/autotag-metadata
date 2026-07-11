@@ -20,6 +20,7 @@
 # ********************************************************************
 
 import hashlib
+import json
 import logging
 import time
 from pathlib import Path
@@ -53,11 +54,18 @@ def hash_file(filename, max_retries=5, retry_delay=1.0):
                 return None
 
 
-def write_metadata(filepath, parameters, suffix=".metadata.yaml"):
-    """Write *parameters* as YAML to ``<filepath><suffix>`` (default ``.metadata.yaml``)."""
+def write_metadata(filepath, parameters, suffix=".metadata.yaml", fmt="yaml"):
+    """Write *parameters* to ``<filepath><suffix>`` (default ``.metadata.yaml``).
+
+    *fmt* selects the serialization format independently of the suffix:
+    ``"json"`` writes JSON, anything else writes YAML.
+    """
     meta_path = filepath + suffix
     with open(meta_path, "w", encoding="utf-8") as metadata_file:
-        yaml.dump(parameters, metadata_file, sort_keys=False, allow_unicode=True)
+        if fmt == "json":
+            json.dump(parameters, metadata_file, indent=2, ensure_ascii=False)
+        else:
+            yaml.dump(parameters, metadata_file, sort_keys=False, allow_unicode=True)
     logger.info("wrote metadata for %s", meta_path)
 
 

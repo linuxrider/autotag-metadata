@@ -39,9 +39,10 @@ from .yaml_multi_view import YamlMultiView
 if TYPE_CHECKING:
     from ..app import AutotagApp
 
-# Editor tab order — mirrors AutotagApp._setup_editor_area (Form first, YAML second).
+# Editor tab order — mirrors AutotagApp._setup_editor_area (Form, YAML, JSON).
 _FORM_TAB = 0
 _YAML_TAB = 1
+_JSON_TAB = 2
 
 _EXAMPLE_YAML = """\
 echemdbSchemaVersion: 0.7.1
@@ -216,6 +217,9 @@ class GuidedTour:
     def _show_yaml(self) -> None:
         self._app._view_tabs.setCurrentIndex(_YAML_TAB)
 
+    def _show_json(self) -> None:
+        self._app._view_tabs.setCurrentIndex(_JSON_TAB)
+
     def _show_broken_yaml(self) -> None:
         """Inject a syntax error (over-indented list-item key) for the user to spot and fix."""
         app = self._app
@@ -234,8 +238,10 @@ class GuidedTour:
         """Reveal the library with Templates active — the first library step the tour uses."""
         app = self._app
         # Restore valid YAML in case the error from the previous step was left unfixed.
-        app._populate_yamltextfield()
-        app._set_yaml_status(True)
+        from ..app import _IDX_YAML
+
+        app._sync_all_editors()
+        app._set_tab_status(_IDX_YAML, True, "YAML")
         app._act_sidebar.setChecked(True)
         app._templates_dock.raise_()
 
@@ -372,9 +378,17 @@ class GuidedTour:
                 [app._suffix_label, app.ledMetaSuffix],
             ),
             TourStep(
+                "2.6 Output format",
+                "The <b>Format</b> combo picks the sidecar's serialization — <b>YAML</b> or "
+                "<b>JSON</b> — independently of the suffix. YAML stays human-friendly; choose JSON "
+                "when a downstream tool consumes the sidecar.",
+                [app._format_label, app.cbMetaFormat],
+            ),
+            TourStep(
                 "3.1 Switch between views",
-                "Edit metadata as a structured <b>Form</b> or as raw <b>YAML</b>. These tabs switch "
-                "between the two — both edit the same document, so you can move freely between them.",
+                "Edit metadata as a structured <b>Form</b>, as raw <b>YAML</b>, or as raw <b>JSON</b>. "
+                "These tabs switch between them — all three edit the same document, so you can move "
+                "freely between them.",
                 [app._view_tabs],
                 on_enter=self._show_form,
             ),
@@ -400,6 +414,14 @@ class GuidedTour:
                 "sibling keys, then press Next.",
                 [self._yaml_body_rect, self._tab_rect_supplier(_YAML_TAB)],
                 on_enter=self._show_broken_yaml,
+            ),
+            TourStep(
+                "3.5 The JSON editor",
+                "The JSON tab mirrors the whole document as raw JSON — the same content, a different "
+                "serialization. Edits sync back into the Form and YAML views, and its tab blinks red "
+                "on a syntax error, just like YAML.",
+                [app._json_edit, self._tab_rect_supplier(_JSON_TAB)],
+                on_enter=self._show_json,
             ),
             TourStep(
                 "4.1 Open the Library",
