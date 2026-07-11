@@ -1,17 +1,9 @@
 ![test status](https://github.com/echemdb/autotag-metadata/actions/workflows/test.yml/badge.svg)
 
 autotag-metadata is a lightweight tool that creates metadata files for newly created files
-in the filesystem. A common example is the creation of measurement files during an
+in the filesystem on a local machine. A common example is the creation of measurement files during an
 experiment, for which you would like to store additional information. The content of the
 newly created metadata file is based on a user-defined template.
-
-![basic_usage](https://raw.githubusercontent.com/echemdb/autotag-metadata/main/doc/images/basic_usage.gif)
-
-It is possible to couple autotag-metadata with editors to exploit their advanced
-capabilities for verifying the metadata against a schema.
-
-![advanced_usage](https://raw.githubusercontent.com/echemdb/autotag-metadata/main/doc/images/advanced_usage.gif)
-
 Multiple instances of the program can be launched to watch different folders simultaneously.
 
 The application includes a **guided tour** (Help → Show Tour, and automatically on first launch)
