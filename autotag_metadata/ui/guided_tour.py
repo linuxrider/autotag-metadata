@@ -359,13 +359,13 @@ class GuidedTour:
                 [app.ledFolder, app.btnBrowse, app.btnActivate],
             ),
             TourStep(
-                "2. Filter which files",
+                "2.1 Filter which files",
                 "Restrict tagging to matching files with comma-separated globs "
                 "(e.g. <code>*.csv,*.tsv</code>), and tick <b>Recursive</b> to include sub-folders.",
                 [app._patterns_label, app.ledFilePatterns, app.cbRecursiveWatch],
             ),
             TourStep(
-                "2.5 Sidecar suffix",
+                "2.2 Sidecar suffix",
                 "The <b>Suffix</b> field controls the sidecar file name. Leave it empty for the "
                 "default <code>.metadata.yaml</code>, or type a custom extension "
                 "(e.g. <code>.ec-lab.metadata.yaml</code>) to distinguish sidecar families.",
@@ -459,7 +459,21 @@ class GuidedTour:
                 on_enter=self._show_views,
             ),
             TourStep(
-                "5. Drop files on demand",
+                "5. The live file",
+                "The <b>Live file</b> is a YAML file kept in sync with the editor. Press "
+                "<b>Select…</b> to choose one, <b>Use</b> to watch it — then edits in your "
+                "external editor flow back into this document and vice versa — and <b>Open</b> "
+                "to launch it in your default editor.",
+                [
+                    app.ledTemporaryLoc,
+                    app.btnSelectTemporaryFile,
+                    app.btnOpenTemporaryFile,
+                    app.btnUseTemporaryFile,
+                ],
+                on_enter=self._show_form,
+            ),
+            TourStep(
+                "6. Drop files on demand",
                 "The <b>Drop files</b> toggle opens a drop zone for tagging individual files "
                 "without watching a folder. Drag files onto the zone and they are tagged with "
                 "the current metadata. The <b>Log</b> panel shows what happened.",
@@ -467,7 +481,7 @@ class GuidedTour:
                 on_enter=self._reveal_dropzone,
             ),
             TourStep(
-                "6. The Log",
+                "7. The Log",
                 "The <b>Log</b> toggle reveals the log panel at the bottom. Every tagging event, "
                 "warning, and error is recorded here so you can see exactly what happened and "
                 "which files were processed.",
