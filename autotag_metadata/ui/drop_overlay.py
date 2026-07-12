@@ -80,7 +80,7 @@ def highlight_rect(widget: QtWidgets.QWidget, edge: str) -> QtCore.QRect:
 class DropOverlay(QtWidgets.QWidget):
     """Transparent overlay painted on top of a drop-target zoom panel."""
 
-    def __init__(self, parent: QtWidgets.QWidget):
+    def __init__(self, parent: QtWidgets.QWidget) -> None:
         super().__init__(parent)
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_NoSystemBackground)

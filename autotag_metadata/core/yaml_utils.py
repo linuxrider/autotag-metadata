@@ -21,12 +21,14 @@
 
 import datetime
 import json
+from typing import Any
 
 import yaml
 from yamllint import linter
+from yamllint.linter import LintProblem
 
 
-def json_default(obj):
+def json_default(obj: object) -> str:
     """Serialize types that JSON does not handle natively.
 
     YAML parses timestamps (``2026-07-12 06:36:55``) into ``datetime``/``date``
@@ -38,7 +40,7 @@ def json_default(obj):
     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
 
-def validate_yaml_syntax(text):
+def validate_yaml_syntax(text: str) -> LintProblem | None:
     """Check whether *text* is syntactically valid YAML.
 
     Returns ``None`` if valid, or a ``yamllint.linter.LintProblem``
@@ -47,28 +49,28 @@ def validate_yaml_syntax(text):
     return linter.get_syntax_error(text)
 
 
-def parse_yaml(text):
+def parse_yaml(text: str) -> Any:
     """Safely parse a YAML string and return the resulting object."""
     return yaml.safe_load(text)
 
 
-def dump_yaml(data):
+def dump_yaml(data: Any) -> str:
     """Serialize *data* to a YAML string."""
     return yaml.dump(data, sort_keys=False, allow_unicode=True)
 
 
-def dump_yaml_to_file(data, filepath):
+def dump_yaml_to_file(data: Any, filepath: str) -> None:
     """Write *data* as YAML to *filepath*."""
     with open(filepath, "w", encoding="utf-8") as f:
         yaml.dump(data, f, sort_keys=False, allow_unicode=True)
 
 
-def dump_json(data):
+def dump_json(data: Any) -> str:
     """Serialize *data* to a pretty-printed JSON string (keeps key order, unicode)."""
     return json.dumps(data, indent=2, ensure_ascii=False, default=json_default)
 
 
-def parse_json(text):
+def parse_json(text: str) -> Any:
     """Parse a JSON string and return the resulting object."""
     return json.loads(text)
 
@@ -195,7 +197,7 @@ def yaml_path_at_line(text: str, line_no: int) -> str | None:
     return _node_path_at_line(root, line_no, "")
 
 
-def _node_path_at_line(node, line_no: int, prefix: str) -> str | None:
+def _node_path_at_line(node: yaml.Node, line_no: int, prefix: str) -> str | None:
     """Depth-first search for the mapping key or sequence item on *line_no*."""
     if isinstance(node, yaml.MappingNode):
         for key_node, value_node in node.value:

@@ -90,7 +90,7 @@ ty = "*"
 pylint = "ruff check autotag_metadata"
 black = "ruff format autotag_metadata"
 isort = "ruff check --select I autotag_metadata"
-typecheck = "ty check autotag_metadata"
+typecheck = "ty check --python $CONDA_PREFIX autotag_metadata"
 lint = { depends-on = ["pylint", "black", "isort", "typecheck"]  }
 # CI variants: fail (don't rewrite) on unformatted / unsorted code.
 format-check = "ruff format --check --diff autotag_metadata"

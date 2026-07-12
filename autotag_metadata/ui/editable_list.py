@@ -26,7 +26,7 @@ discards it). Shared by the snippets, templates and views sidebars.
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QStandardItem, QStandardItemModel
-from PyQt6.QtWidgets import QAbstractItemDelegate, QLineEdit, QListView, QMenu
+from PyQt6.QtWidgets import QAbstractItemDelegate, QLineEdit, QListView, QMenu, QWidget
 
 #: Marks the transient "new entry" row awaiting a name.
 _PENDING_ROLE = Qt.ItemDataRole.UserRole + 3
@@ -40,7 +40,7 @@ class EditableListView(QListView):
     create_requested = pyqtSignal(str)  # a new row was named
     delete_requested = pyqtSignal(str)
 
-    def __init__(self, *, activate_on_double_click: bool = True, parent=None):
+    def __init__(self, *, activate_on_double_click: bool = True, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setModel(self._create_model())
         self.setSelectionMode(QListView.SelectionMode.SingleSelection)

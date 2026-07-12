@@ -42,13 +42,13 @@ class LogHandler(logging.Handler):
     attribute access would raise. Keeping the handler pure-Python avoids that.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QObject | None = None) -> None:
         super().__init__()
         self._emitter = _RecordEmitter(parent)
         self.new_record = self._emitter.new_record
         logger.info("Starting logger")
 
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         try:
             self.new_record.emit(self.format(record))
         except RuntimeError:

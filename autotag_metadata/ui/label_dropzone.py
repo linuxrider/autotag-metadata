@@ -20,8 +20,8 @@
 # ********************************************************************
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QPalette
-from PyQt6.QtWidgets import QLabel
+from PyQt6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDragMoveEvent, QDropEvent, QPalette
+from PyQt6.QtWidgets import QLabel, QWidget
 
 
 class LabelDropzone(QLabel):
@@ -29,7 +29,7 @@ class LabelDropzone(QLabel):
 
     files_submitted = pyqtSignal(list)  # list[str] of local file paths
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("Drop files here\nto write their .metadata.yaml", parent)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setWordWrap(True)
@@ -44,19 +44,19 @@ class LabelDropzone(QLabel):
             f"QLabel {{ border: 2px dashed {color}; border-radius: 6px; margin: 4px; padding: 8px; }}"
         )
 
-    def dragEnterEvent(self, event):
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         if event.mimeData().hasUrls():
             self._restyle(active=True)
             event.acceptProposedAction()
 
-    def dragMoveEvent(self, event):
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
 
-    def dragLeaveEvent(self, event):
+    def dragLeaveEvent(self, event: QDragLeaveEvent) -> None:
         self._restyle(active=False)
 
-    def dropEvent(self, event):
+    def dropEvent(self, event: QDropEvent) -> None:
         self._restyle(active=False)
         paths = [url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile()]
         if paths:

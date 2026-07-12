@@ -66,7 +66,7 @@ def _default_snippet_name(data) -> str:
 class AutotagApp(QtWidgets.QMainWindow):
     """Main window — thin UI controller that delegates to core modules."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super(AutotagApp, self).__init__(*args, **kwargs)
         uic.loadUi(_DIR / "ui" / "main_window.ui", self)
 
@@ -181,7 +181,7 @@ class AutotagApp(QtWidgets.QMainWindow):
 
     # -- settings persistence ----------------------------------------------
 
-    def _restore_settings(self):
+    def _restore_settings(self) -> None:
         """Populate widgets from saved config (tolerant of missing keys)."""
         geom = self.config.window_geometry
         if geom is not None:
@@ -197,7 +197,7 @@ class AutotagApp(QtWidgets.QMainWindow):
         self.cbMetaFormat.setCurrentIndex(idx if idx >= 0 else 0)
         self.cbRecursiveWatch.setChecked(self.config.recursive_watching)
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         self._tour.stop()  # no-op unless a tour is running; restores state it changed
         self.config.window_geometry = self.frameGeometry().getCoords()
         self.config.watch_folder = self.ledFolder.text()
@@ -244,7 +244,7 @@ class AutotagApp(QtWidgets.QMainWindow):
         for index in self._error_tabs:
             self._view_tabs.setTabTextColor(index, color)
 
-    def _sync_all_editors(self):
+    def _sync_all_editors(self) -> None:
         """Sync both multiviews and the JSON view from the parameters dict."""
         self._text_multiview.set_document(self.parameters)
         self._form_multiview.set_document(self.parameters)
@@ -731,7 +731,7 @@ class AutotagApp(QtWidgets.QMainWindow):
 
     # -- temporary file management -----------------------------------------
 
-    def select_temporary_file(self):
+    def select_temporary_file(self) -> None:
         """Open a file dialog to select the temporary YAML file."""
         temporary_file, _ = QtWidgets.QFileDialog.getSaveFileName(self, "pushButton", str(Path.home()), "*.yaml")
         if temporary_file:
@@ -742,7 +742,7 @@ class AutotagApp(QtWidgets.QMainWindow):
             self._enable_use()
             logger.info("changed temporary file to %s", temporary_file)
 
-    def open_temporary_file(self):
+    def open_temporary_file(self) -> None:
         """Launch the OS default editor on the live file."""
         temporary_file = self.ledTemporaryLoc.text()
         if not temporary_file or not Path(temporary_file).exists():
@@ -756,7 +756,7 @@ class AutotagApp(QtWidgets.QMainWindow):
                 self, "Open Live File", f"No application is available to open:\n{temporary_file}"
             )
 
-    def toggle_watch_temporary_file(self):
+    def toggle_watch_temporary_file(self) -> None:
         """Toggle temporary file watching."""
         temporary_file = self.ledTemporaryLoc.text()
         if self.btnUseTemporaryFile.isChecked():
@@ -788,10 +788,10 @@ class AutotagApp(QtWidgets.QMainWindow):
         self._sync_all_editors()
         self._form_multiview.set_document(self.parameters)
 
-    def _write_temporary_file(self):
+    def _write_temporary_file(self) -> None:
         dump_yaml_to_file(self.parameters, self.ledTemporaryLoc.text())
 
-    def _hidden_write_temporary_file(self):
+    def _hidden_write_temporary_file(self) -> None:
         """Write the temporary file while suppressing the file-change signal."""
         if not self._temporary_write_timer.isActive():
             self._temporary_file_monitor.modify_signal.disconnect()
@@ -799,11 +799,11 @@ class AutotagApp(QtWidgets.QMainWindow):
         self._temporary_write_timer.start(1000)
 
     @QtCore.pyqtSlot()
-    def _reenable_temporary_file_watch(self):
+    def _reenable_temporary_file_watch(self) -> None:
         self._temporary_file_monitor.modify_signal.connect(self._temporary_file_changed)
         self._temporary_write_timer.stop()
 
-    def _enable_use(self):
+    def _enable_use(self) -> None:
         """Enable the 'Use' and 'Open' buttons when the live-file path exists."""
         exists = bool(self.ledTemporaryLoc.text()) and Path(self.ledTemporaryLoc.text()).exists()
         self.btnUseTemporaryFile.setEnabled(exists)
@@ -811,21 +811,21 @@ class AutotagApp(QtWidgets.QMainWindow):
 
     # -- folder watching ---------------------------------------------------
 
-    def browse_folder(self):
+    def browse_folder(self) -> None:
         """Open a directory picker for the watched folder."""
         directory = str(Path(QtWidgets.QFileDialog.getExistingDirectory(self, "pushButton")))
         if directory:
             self.ledFolder.setText(directory)
             logger.info("changed watching folder to %s", directory)
 
-    def _enable_activate(self):
+    def _enable_activate(self) -> None:
         """Enable the Activate button when the folder path is valid."""
         if Path(self.ledFolder.text()).exists():
             self.btnActivate.setEnabled(True)
         else:
             self.btnActivate.setDisabled(True)
 
-    def toggle_watch(self):
+    def toggle_watch(self) -> None:
         """Toggle folder watching."""
         watch_directory = self.ledFolder.text()
         if self.btnActivate.isChecked():
@@ -860,7 +860,7 @@ class AutotagApp(QtWidgets.QMainWindow):
             self.cbRecursiveWatch.setEnabled(True)
             logger.info("stop watching %s", watch_directory)
 
-    def _file_created(self, msg):
+    def _file_created(self, msg: str) -> None:
         """Handle a newly created file — build and write metadata."""
         suffix = self._metadata_suffix()
         if not msg.endswith(suffix):
@@ -871,7 +871,7 @@ class AutotagApp(QtWidgets.QMainWindow):
 
     # -- logging -----------------------------------------------------------
 
-    def _setup_logger(self):
+    def _setup_logger(self) -> None:
         self.pteLogging = QtWidgets.QPlainTextEdit()
         self.pteLogging.setReadOnly(True)
         self.pteLogging.setMaximumBlockCount(2000)
@@ -890,7 +890,7 @@ class AutotagApp(QtWidgets.QMainWindow):
         logger.info("Starting autotag-metadata")
 
 
-def run():
+def run() -> None:
     """Start Application."""
     # Silence a benign Qt-Wayland text-input protocol warning ("Got leave event
     # for surface 0x0 ..."). It is emitted by Qt's Wayland plugin on focus

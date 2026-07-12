@@ -37,7 +37,7 @@ class _DragHandle(QtWidgets.QLabel):
 
     drag_started = QtCore.pyqtSignal(object)  # emits the panel
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__("⠿", parent)
         self.setFixedWidth(18)
         self.setCursor(QtCore.Qt.CursorShape.SizeAllCursor)
@@ -81,7 +81,9 @@ class _ZoomPanelBase(QtWidgets.QWidget):
     snippet_dropped = QtCore.pyqtSignal(str)  # dropped snippet YAML text
     yaml_error = QtCore.pyqtSignal(str)  # syntax error message; ZoomTextView only
 
-    def __init__(self, document: YamlDocument, initial_path: str = "", parent=None):
+    def __init__(
+        self, document: YamlDocument, initial_path: str = "", parent: QtWidgets.QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         self._doc = document
         self._path = initial_path

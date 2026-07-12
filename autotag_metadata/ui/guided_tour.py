@@ -27,6 +27,7 @@ it drives the app's own widgets so the coach marks point at the real chrome.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from PyQt6 import QtCore, QtWidgets
@@ -312,7 +313,7 @@ class GuidedTour:
                 return QtCore.QRect(tl, bar.size())
         return None
 
-    def _tab_rect_supplier(self, idx: int):
+    def _tab_rect_supplier(self, idx: int) -> Callable[[], QtCore.QRect | None]:
         """Return a callable that gives the view-tab header rect in main-window coordinates."""
         app = self._app
 

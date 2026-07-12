@@ -49,7 +49,7 @@ class MetadataFormat(str, Enum):
     JSON = "json"
 
     @classmethod
-    def from_value(cls, value, default="yaml"):
+    def from_value(cls, value: object, default: str = "yaml") -> "MetadataFormat":
         """Coerce *value* (a string or member) to a member, falling back to *default*."""
         try:
             return cls(value)
@@ -57,7 +57,7 @@ class MetadataFormat(str, Enum):
             return cls(default)
 
 
-def hash_file(filename, max_retries=5, retry_delay=1.0):
+def hash_file(filename: str, max_retries: int = 5, retry_delay: float = 1.0) -> str | None:
     """Generate sha512 hash of a file.
 
     Retries up to *max_retries* times when the file is still locked or
@@ -81,7 +81,12 @@ def hash_file(filename, max_retries=5, retry_delay=1.0):
                 return None
 
 
-def write_metadata(filepath, parameters, suffix=".metadata.yaml", format=MetadataFormat.YAML):
+def write_metadata(
+    filepath: str,
+    parameters: dict,
+    suffix: str = ".metadata.yaml",
+    format: MetadataFormat | str = MetadataFormat.YAML,
+) -> None:
     """Write *parameters* to ``<filepath><suffix>`` (default ``.metadata.yaml``).
 
     *format* (a :class:`MetadataFormat` or its string value) selects the serialization
@@ -96,7 +101,7 @@ def write_metadata(filepath, parameters, suffix=".metadata.yaml", format=Metadat
     logger.info("wrote metadata for %s", meta_path)
 
 
-def build_metadata(filepath, parameters):
+def build_metadata(filepath: str, parameters: dict) -> dict | None:
     """Enrich *parameters* with timestamp, filename and hash for *filepath*.
 
     Returns the updated parameters dict, or ``None`` if hashing failed.

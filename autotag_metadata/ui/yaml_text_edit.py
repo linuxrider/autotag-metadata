@@ -24,7 +24,12 @@ import re  # noqa: I001
 from PyQt6.QtCore import Qt, QRect, QSize, pyqtSignal
 from PyQt6.QtGui import (
     QColor,
+    QContextMenuEvent,
+    QDragEnterEvent,
+    QDragMoveEvent,
+    QDropEvent,
     QFontDatabase,
+    QKeyEvent,
     QMouseEvent,
     QPaintEvent,
     QPainter,
@@ -145,7 +150,7 @@ class YamlTextEdit(QPlainTextEdit):
     _INDENT_N = 2  # YAML indentation unit (spaces); tabs are not allowed
     _INDENT = " " * _INDENT_N
 
-    def __init__(self, *args, show_zoom_gutter: bool = False, **kwargs):
+    def __init__(self, *args, show_zoom_gutter: bool = False, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._zoom_gutter: _ZoomGutter | None = None
         self._hover_line: int | None = None
@@ -219,7 +224,7 @@ class YamlTextEdit(QPlainTextEdit):
 
     # -- indentation: guide lines + tab/enter behaviour --------------------
 
-    def paintEvent(self, event):
+    def paintEvent(self, event: QPaintEvent) -> None:
         """Draw the text, then faint vertical guides at each indent level."""
         super().paintEvent(event)
         space_w = self.fontMetrics().horizontalAdvance(" ")
@@ -246,7 +251,7 @@ class YamlTextEdit(QPlainTextEdit):
             block = block.next()
         painter.end()
 
-    def keyPressEvent(self, event):
+    def keyPressEvent(self, event: QKeyEvent) -> None:
         cursor = self.textCursor()
         key = event.key()
         if key == Qt.Key.Key_Backtab:
@@ -299,7 +304,7 @@ class YamlTextEdit(QPlainTextEdit):
 
     # ----------------------------------------------------------------------
 
-    def contextMenuEvent(self, event):
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         """Add a 'Save selection as snippet' entry to the standard menu."""
         menu = self.createStandardContextMenu()
         if self.textCursor().hasSelection():
@@ -342,19 +347,19 @@ class YamlTextEdit(QPlainTextEdit):
             return bytes(mime.data(SNIPPET_MIME)).decode("utf-8")
         return None
 
-    def dragEnterEvent(self, event):
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         if self._snippet_text(event.mimeData()) is not None:
             event.acceptProposedAction()
         else:
             super().dragEnterEvent(event)
 
-    def dragMoveEvent(self, event):
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
         if self._snippet_text(event.mimeData()) is not None:
             event.acceptProposedAction()
         else:
             super().dragMoveEvent(event)
 
-    def dropEvent(self, event):
+    def dropEvent(self, event: QDropEvent) -> None:
         snippet = self._snippet_text(event.mimeData())
         if snippet is not None:
             cursor = self.cursorForPosition(event.position().toPoint())

@@ -19,6 +19,9 @@
 #  <https://www.gnu.org/licenses/>.
 # ********************************************************************
 
+from collections.abc import Callable
+from typing import Any
+
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 # ---------------------------------------------------------------------------
@@ -176,7 +179,16 @@ class _ValueUnitRow(QtWidgets.QWidget):
     Shows: key_label | value_widget (stretch) | unit_widget (narrow) | extra fields...
     """
 
-    def __init__(self, key: str, val_dict: dict, even: bool, callback, zoom_path=None, on_zoom=None, parent=None):
+    def __init__(
+        self,
+        key: str,
+        val_dict: dict,
+        even: bool,
+        callback: Callable,
+        zoom_path: str | None = None,
+        on_zoom: Callable[[str], None] | None = None,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setAutoFillBackground(True)
         palette = self.palette()
@@ -232,7 +244,14 @@ class _ValueUnitRow(QtWidgets.QWidget):
 class _CollapsibleBox(QtWidgets.QWidget):
     """Collapsible section with depth-tinted header."""
 
-    def __init__(self, title: str, depth: int = 0, zoom_path=None, on_zoom=None, parent=None):
+    def __init__(
+        self,
+        title: str,
+        depth: int = 0,
+        zoom_path: str | None = None,
+        on_zoom: Callable[[str], None] | None = None,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         bg, fg = _header_colors(self.palette(), depth)
 
@@ -307,7 +326,7 @@ class YamlFormView(QtWidgets.QScrollArea):
     data_changed = QtCore.pyqtSignal(object)  # dict, or list for a list-rooted subtree
     zoom_requested = QtCore.pyqtSignal(str)  # relative dotted path of a row's subtree/value
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWidgetResizable(True)
         self.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
@@ -369,7 +388,7 @@ class YamlFormView(QtWidgets.QScrollArea):
 
     # ------------------------------------------------------------------
 
-    def _zoom_cb(self):
+    def _zoom_cb(self) -> Callable[[str], None] | None:
         """The per-row filter callback, or None when zoom buttons are suppressed."""
         return self._emit_zoom if self._zoom_enabled else None
 
@@ -563,7 +582,7 @@ def _parse_list(text: str) -> list:
     return [_coerce(item.strip()) for item in text.split(",")]
 
 
-def _coerce(s: str):
+def _coerce(s: str) -> int | float | str:
     try:
         return int(s)
     except ValueError:
@@ -584,7 +603,7 @@ def _is_value_unit_dict(val) -> bool:
     return isinstance(val, dict) and "value" in val and all(not isinstance(v, (dict, list)) for v in val.values())
 
 
-def _deep_copy(obj):
+def _deep_copy(obj: Any) -> Any:
     if isinstance(obj, dict):
         return {k: _deep_copy(v) for k, v in obj.items()}
     if isinstance(obj, list):
