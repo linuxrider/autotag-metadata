@@ -98,6 +98,7 @@ isort-check = "ruff check --select I --diff autotag_metadata"
 lint-check = { depends-on = ["pylint", "format-check", "isort-check", "typecheck"] }
 
 [tool.pixi.feature.doc.dependencies]
+imagemagick = "*"   # provides `magick` for the tour-gif task
 jupytext = "*"
 myst-nb = "*"
 myst-parser = "*"

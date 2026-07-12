@@ -53,6 +53,15 @@ curation:
       name: J. Smith
       orcid: https://orcid.org/0000-0000-0000-0000
 experimental:
+  notes: |
+    ## Sample preparation
+
+    Au(111) single crystal **flame-annealed**, then:
+
+    - 10 min sonication in ultrapure water
+    - dried under N2
+
+    Electrolyte prepared fresh; see [echemdb](https://echemdb.org).
   tags:
     - BCV
   instrumentation:
@@ -220,6 +229,12 @@ class GuidedTour:
 
     def _show_json(self) -> None:
         self._app._view_tabs.setCurrentIndex(_JSON_TAB)
+
+    def _show_prose(self) -> None:
+        """Zoom the Form onto `experimental`, where the example's prose field lives."""
+        app = self._app
+        app._view_tabs.setCurrentIndex(_FORM_TAB)
+        app._form_multiview.set_layout({"path": "experimental"})
 
     def _show_broken_yaml(self) -> None:
         """Inject a syntax error (over-indented list-item key) for the user to spot and fix."""
@@ -401,14 +416,24 @@ class GuidedTour:
                 on_enter=self._show_form,
             ),
             TourStep(
-                "3.3 The YAML editor",
+                "3.3 Prose fields",
+                "A field holding more than one line of text — like <code>experimental.notes</code> "
+                "here — is edited as <b>Markdown</b>, formatted as you type: start a line with "
+                "<code>## </code> for a heading or <code>- </code> for a bullet, and use "
+                "<b>Ctrl+B</b> / <b>Ctrl+I</b> or the small toolbar. Click <b>⤢</b> on the row to "
+                "open it as a full-height editor, or <b>Source</b> to see the raw Markdown.",
+                [self._form_body_rect, self._tab_rect_supplier(_FORM_TAB)],
+                on_enter=self._show_prose,
+            ),
+            TourStep(
+                "3.4 The YAML editor",
                 "The YAML tab is the same document as raw text, with syntax highlighting. Its tab "
                 "blinks red when the YAML has a syntax error.",
                 [self._yaml_body_rect, self._tab_rect_supplier(_YAML_TAB)],
                 on_enter=self._show_yaml,
             ),
             TourStep(
-                "3.4 Fixing a syntax error",
+                "3.5 Fixing a syntax error",
                 "This document now has a mistake: a line under <code>system.electrodes</code> is "
                 "indented one space too far. The tab blinks red and the exact line is highlighted — "
                 "hover over the tab for the details. Fix the indentation so it lines up with its "
@@ -417,7 +442,7 @@ class GuidedTour:
                 on_enter=self._show_broken_yaml,
             ),
             TourStep(
-                "3.5 The JSON editor",
+                "3.6 The JSON editor",
                 "The JSON tab mirrors the whole document as raw JSON — the same content, a different "
                 "serialization. Edits sync back into the Form and YAML views, and its tab blinks red "
                 "on a syntax error, just like YAML.",
