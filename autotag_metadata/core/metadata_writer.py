@@ -54,7 +54,7 @@ def hash_file(filename, max_retries=5, retry_delay=1.0):
                 return None
 
 
-def write_metadata(filepath, parameters, suffix=".metadata.yaml", fmt="yaml"):
+def write_metadata(filepath, parameters, suffix=".metadata.yaml", format="yaml"):
     """Write *parameters* to ``<filepath><suffix>`` (default ``.metadata.yaml``).
 
     *fmt* selects the serialization format independently of the suffix:
