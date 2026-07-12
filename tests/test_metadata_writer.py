@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import yaml
 
-from autotag_metadata.core.metadata_writer import build_metadata, hash_file, write_metadata
+from autotag_metadata.core.metadata_writer import MetadataFormat, build_metadata, hash_file, write_metadata
 
 
 def test_hash_file_returns_sha512(tmp_path):
@@ -53,7 +53,7 @@ def test_write_metadata_json_format_writes_json(tmp_path):
     f = tmp_path / "data.csv"
     f.write_bytes(b"x")
     params = {"experiment": "test", "value": 42}
-    write_metadata(str(f), params, fmt="json")
+    write_metadata(str(f), params, format=MetadataFormat.JSON)
     meta = tmp_path / "data.csv.metadata.yaml"  # suffix is independent of format
     assert meta.exists()
     assert json.loads(meta.read_text(encoding="utf-8")) == params
@@ -63,7 +63,7 @@ def test_write_metadata_format_independent_of_suffix(tmp_path):
     f = tmp_path / "data.csv"
     f.write_bytes(b"x")
     # JSON content under a custom suffix; and a .json suffix still yields YAML by default.
-    write_metadata(str(f), {"a": 1}, suffix=".meta", fmt="json")
+    write_metadata(str(f), {"a": 1}, suffix=".meta", format=MetadataFormat.JSON)
     assert json.loads((tmp_path / "data.csv.meta").read_text(encoding="utf-8")) == {"a": 1}
     write_metadata(str(f), {"a": 1}, suffix=".json")
     assert yaml.safe_load((tmp_path / "data.csv.json").read_text(encoding="utf-8")) == {"a": 1}
@@ -73,7 +73,7 @@ def test_write_metadata_json_preserves_unicode_and_order(tmp_path):
     f = tmp_path / "data.csv"
     f.write_bytes(b"x")
     params = {"z_key": "ünïcode", "a_key": 2}
-    write_metadata(str(f), params, fmt="json")
+    write_metadata(str(f), params, format=MetadataFormat.JSON)
     content = (tmp_path / "data.csv.metadata.yaml").read_text(encoding="utf-8")
     assert "ünïcode" in content  # not escaped
     assert content.index("z_key") < content.index("a_key")

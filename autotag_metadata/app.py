@@ -29,7 +29,7 @@ from pathlib import Path
 from PyQt6 import QtCore, QtGui, QtWidgets, uic
 
 from .config import Config
-from .core.metadata_writer import build_metadata, write_metadata
+from .core.metadata_writer import MetadataFormat, build_metadata, write_metadata
 from .core.yaml_document import non_destructive_merge, overwrite_merge
 from .core.yaml_utils import dump_json, dump_yaml, dump_yaml_to_file, parse_json, parse_yaml
 from .file_handling import FileMonitor
@@ -107,9 +107,9 @@ class AutotagApp(QtWidgets.QMainWindow):
             QtGui.QRegularExpressionValidator(QtCore.QRegularExpression(r"[A-Za-z0-9._-]*"))
         )
         self.cbMetaFormat = QtWidgets.QComboBox()
-        # userData holds the format key written by write_metadata; label is display-only.
-        self.cbMetaFormat.addItem("YAML", "yaml")
-        self.cbMetaFormat.addItem("JSON", "json")
+        # One entry per MetadataFormat; userData holds the member, label is its upper-cased value.
+        for member in MetadataFormat:
+            self.cbMetaFormat.addItem(member.value.upper(), member)
         self.cbMetaFormat.setToolTip("Serialization format of the sidecar file (independent of the suffix)")
 
         self.ledFolder = QtWidgets.QLineEdit()
@@ -588,9 +588,9 @@ class AutotagApp(QtWidgets.QMainWindow):
         safe = re.sub(r"[^A-Za-z0-9._-]", "", self.ledMetaSuffix.text()).lstrip(".")
         return f".{safe}" if safe else ".metadata.yaml"
 
-    def _metadata_format(self) -> str:
-        """Selected sidecar serialization format (``"yaml"`` or ``"json"``)."""
-        return self.cbMetaFormat.currentData() or "yaml"
+    def _metadata_format(self) -> MetadataFormat:
+        """Selected sidecar serialization format (``MetadataFormat.YAML``/``JSON``)."""
+        return self.cbMetaFormat.currentData() or MetadataFormat.YAML
 
     @staticmethod
     def _matches_pattern(name: str, patterns: list[str] | None) -> bool:

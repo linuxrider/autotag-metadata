@@ -19,10 +19,23 @@
 #  <https://www.gnu.org/licenses/>.
 # ********************************************************************
 
+import datetime
 import json
 
 import yaml
 from yamllint import linter
+
+
+def json_default(obj):
+    """Serialize types that JSON does not handle natively.
+
+    YAML parses timestamps (``2026-07-12 06:36:55``) into ``datetime``/``date``
+    objects, which the ``json`` module cannot encode — render them as ISO 8601
+    strings.
+    """
+    if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
 
 def validate_yaml_syntax(text):
@@ -52,7 +65,7 @@ def dump_yaml_to_file(data, filepath):
 
 def dump_json(data):
     """Serialize *data* to a pretty-printed JSON string (keeps key order, unicode)."""
-    return json.dumps(data, indent=2, ensure_ascii=False)
+    return json.dumps(data, indent=2, ensure_ascii=False, default=json_default)
 
 
 def parse_json(text):

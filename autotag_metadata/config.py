@@ -28,6 +28,8 @@ from typing import Any
 
 import toml
 
+from autotag_metadata.core.metadata_writer import MetadataFormat
+
 if sys.platform == "win32":
     appdata_path: Path = Path(os.environ["APPDATA"]) / "autotag-metadata"
 elif sys.platform == "darwin":
@@ -136,13 +138,15 @@ class Config:
         self._config["metadataSuffix"] = value
 
     @property
-    def metadata_format(self) -> str:
-        """Serialization format for the sidecar file: ``"yaml"`` or ``"json"``."""
-        return self._config.get("metadataFormat", "yaml")
+    def metadata_format(self) -> MetadataFormat:
+        """Serialization format for the sidecar file (``MetadataFormat.YAML``/``JSON``)."""
+        return MetadataFormat.from_value(self._config.get("metadataFormat", "yaml"))
 
     @metadata_format.setter
-    def metadata_format(self, value: str):
-        self._config["metadataFormat"] = value
+    def metadata_format(self, value):
+        # Store the plain string value so the TOML file stays human-readable and
+        # backward-compatible with configs written before MetadataFormat existed.
+        self._config["metadataFormat"] = MetadataFormat.from_value(value).value
 
     @property
     def recursive_watching(self) -> bool:
