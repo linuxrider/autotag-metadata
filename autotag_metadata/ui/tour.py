@@ -55,7 +55,7 @@ class TourOverlay(QtWidgets.QWidget):
 
     finished = QtCore.pyqtSignal()
 
-    def __init__(self, parent: QtWidgets.QWidget, steps: list[TourStep]):
+    def __init__(self, parent: QtWidgets.QWidget, steps: list[TourStep]) -> None:
         super().__init__(parent)
         self._steps = steps
         self._index = 0
@@ -239,7 +239,7 @@ class TourOverlay(QtWidgets.QWidget):
 
     # -- events ------------------------------------------------------------
 
-    def eventFilter(self, obj, event):  # noqa: N802 (Qt override)
+    def eventFilter(self, obj: QtCore.QObject, event: QtCore.QEvent) -> bool:  # noqa: N802 (Qt override)
         if obj is self.parentWidget() and event.type() in (
             QtCore.QEvent.Type.Resize,
             QtCore.QEvent.Type.Move,

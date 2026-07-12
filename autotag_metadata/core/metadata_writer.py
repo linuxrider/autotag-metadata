@@ -19,17 +19,45 @@
 #  <https://www.gnu.org/licenses/>.
 # ********************************************************************
 
+import datetime
 import hashlib
+import json
 import logging
 import time
+from enum import Enum
 from pathlib import Path
 
 import yaml
 
+from autotag_metadata.core.yaml_utils import json_default
+
 logger = logging.getLogger(__name__)
 
 
-def hash_file(filename, max_retries=5, retry_delay=1.0):
+class MetadataFormat(str, Enum):
+    """Serialization format for the sidecar file, chosen independently of the suffix.
+
+    Subclasses ``str`` so members compare equal to their plain-string value
+    (``MetadataFormat.JSON == "json"``) and serialize transparently to TOML/JSON
+    and Qt ``userData`` — keeping old string-based config files readable.
+
+    When the minimum supported Python is 3.12+, replace ``(str, Enum)`` with
+    ``enum.StrEnum``.
+    """
+
+    YAML = "yaml"
+    JSON = "json"
+
+    @classmethod
+    def from_value(cls, value: object, default: str = "yaml") -> "MetadataFormat":
+        """Coerce *value* (a string or member) to a member, falling back to *default*."""
+        try:
+            return cls(value)
+        except ValueError:
+            return cls(default)
+
+
+def hash_file(filename: str, max_retries: int = 5, retry_delay: float = 1.0) -> str | None:
     """Generate sha512 hash of a file.
 
     Retries up to *max_retries* times when the file is still locked or
@@ -53,22 +81,32 @@ def hash_file(filename, max_retries=5, retry_delay=1.0):
                 return None
 
 
-def write_metadata(filepath, parameters, suffix=".metadata.yaml"):
-    """Write *parameters* as YAML to ``<filepath><suffix>`` (default ``.metadata.yaml``)."""
+def write_metadata(
+    filepath: str,
+    parameters: dict,
+    suffix: str = ".metadata.yaml",
+    format: MetadataFormat | str = MetadataFormat.YAML,
+) -> None:
+    """Write *parameters* to ``<filepath><suffix>`` (default ``.metadata.yaml``).
+
+    *format* (a :class:`MetadataFormat` or its string value) selects the serialization
+    independently of the suffix: ``"json"`` writes JSON, anything else writes YAML.
+    """
     meta_path = filepath + suffix
     with open(meta_path, "w", encoding="utf-8") as metadata_file:
-        yaml.dump(parameters, metadata_file, sort_keys=False, allow_unicode=True)
+        if format == MetadataFormat.JSON:
+            json.dump(parameters, metadata_file, indent=2, ensure_ascii=False, default=json_default)
+        else:
+            yaml.dump(parameters, metadata_file, sort_keys=False, allow_unicode=True)
     logger.info("wrote metadata for %s", meta_path)
 
 
-def build_metadata(filepath, parameters):
+def build_metadata(filepath: str, parameters: dict) -> dict | None:
     """Enrich *parameters* with timestamp, filename and hash for *filepath*.
 
     Returns the updated parameters dict, or ``None`` if hashing failed.
     The original dict is modified in-place.
     """
-    import datetime
-
     parameters["time metadata"] = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     parameters["measurement file name"] = Path(filepath).name
 

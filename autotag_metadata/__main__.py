@@ -27,7 +27,7 @@ from autotag_metadata import app
 desktop_app.set_process_appid("autotag_metadata")
 
 
-def main():
+def main() -> None:
     app.run()
 
 

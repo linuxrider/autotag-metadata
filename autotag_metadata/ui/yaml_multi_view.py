@@ -45,7 +45,12 @@ class YamlMultiView(QtWidgets.QWidget):
     snippet_dropped = QtCore.pyqtSignal(str)
     yaml_error = QtCore.pyqtSignal(str)
 
-    def __init__(self, parent=None, view_factory=None, document: YamlDocument | None = None):
+    def __init__(
+        self,
+        parent: QtWidgets.QWidget | None = None,
+        view_factory: type[_ZoomPanelBase] | None = None,
+        document: YamlDocument | None = None,
+    ) -> None:
         super().__init__(parent)
         self._view_factory = view_factory or ZoomFormView
         self._doc = document if document is not None else YamlDocument({})

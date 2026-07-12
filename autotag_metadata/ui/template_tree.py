@@ -20,7 +20,7 @@
 #  <https://www.gnu.org/licenses/>.
 # ********************************************************************
 from collections import deque
-from typing import Optional
+from typing import Any, Optional
 
 from PyQt6.QtGui import QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import QTreeView, QVBoxLayout, QWidget
@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import QTreeView, QVBoxLayout, QWidget
 class TemplateTree(QWidget):
     """Tree widget for viewing and editing a nested dict as a key/value/type table."""
 
-    def __init__(self, data: dict):
+    def __init__(self, data: dict) -> None:
         super(TemplateTree, self).__init__()
         self.tree = QTreeView(self)
 
@@ -158,7 +158,7 @@ class TemplateTree(QWidget):
         """Return the current tree contents as a nested dict."""
         return self.recurse_items(self.model)
 
-    def recurse_items(self, item, item_type: Optional[str] = None):
+    def recurse_items(self, item: QStandardItem | QStandardItemModel, item_type: Optional[str] = None) -> Any:
         if item is not None:
             if item.hasChildren():
                 temp_dict = {}

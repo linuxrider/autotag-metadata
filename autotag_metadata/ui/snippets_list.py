@@ -19,8 +19,9 @@
 #  <https://www.gnu.org/licenses/>.
 # ********************************************************************
 
-from PyQt6.QtCore import QByteArray, QMimeData, Qt
+from PyQt6.QtCore import QByteArray, QMimeData, QModelIndex, Qt
 from PyQt6.QtGui import QStandardItem, QStandardItemModel
+from PyQt6.QtWidgets import QWidget
 
 from .editable_list import EditableListView
 
@@ -34,10 +35,10 @@ _CONTENT_ROLE = Qt.ItemDataRole.UserRole + 1
 class SnippetsItemModel(QStandardItemModel):
     """Item model that drags a snippet's content as :data:`SNIPPET_MIME`."""
 
-    def mimeTypes(self):
+    def mimeTypes(self) -> list[str]:
         return [SNIPPET_MIME]
 
-    def mimeData(self, indexes):
+    def mimeData(self, indexes: list[QModelIndex]) -> QMimeData:
         mime = QMimeData()
         if indexes:
             content = self.data(indexes[0], _CONTENT_ROLE) or ""
@@ -49,7 +50,7 @@ class SnippetsItemModel(QStandardItemModel):
 class SnippetsListView(EditableListView):
     """Snippets: drag to apply elsewhere, double-click to apply at the captured path."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(activate_on_double_click=True, parent=parent)
         self.setDragEnabled(True)
         self.setDropIndicatorShown(False)

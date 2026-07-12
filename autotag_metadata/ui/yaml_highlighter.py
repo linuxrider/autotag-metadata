@@ -58,7 +58,7 @@ def _format(color: str, *, italic: bool = False, bold: bool = False) -> QtGui.QT
 class YamlHighlighter(QtGui.QSyntaxHighlighter):
     """Highlights YAML keys, strings, numbers, constants, anchors and comments."""
 
-    def __init__(self, document: QtGui.QTextDocument, palette: QtGui.QPalette | None = None):
+    def __init__(self, document: QtGui.QTextDocument, palette: QtGui.QPalette | None = None) -> None:
         super().__init__(document)
         self._rules: list[tuple[QtCore.QRegularExpression, int, QtGui.QTextCharFormat]] = []
         self.set_palette(palette or QtGui.QGuiApplication.palette())

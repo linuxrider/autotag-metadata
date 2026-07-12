@@ -189,7 +189,7 @@ class YamlDocument:
     {'a': {'b': {'c': 99}}}
     """
 
-    def __init__(self, data: dict | None = None):
+    def __init__(self, data: dict | None = None) -> None:
         self._data: dict = data if data is not None else {}
 
     @property

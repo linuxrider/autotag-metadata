@@ -28,6 +28,8 @@ from typing import Any
 
 import toml
 
+from autotag_metadata.core.metadata_writer import MetadataFormat
+
 if sys.platform == "win32":
     appdata_path: Path = Path(os.environ["APPDATA"]) / "autotag-metadata"
 elif sys.platform == "darwin":
@@ -91,12 +93,12 @@ class Config:
     # -- property accessors for UI settings --------------------------------
 
     @property
-    def window_geometry(self):
+    def window_geometry(self) -> tuple | None:
         """Window position/size as a tuple, or ``None``."""
         return self._config.get("windowGeometry")
 
     @window_geometry.setter
-    def window_geometry(self, value):
+    def window_geometry(self, value: tuple | None) -> None:
         self._config["windowGeometry"] = value
 
     @property
@@ -105,7 +107,7 @@ class Config:
         return self._config.get("watchFolder", "")
 
     @watch_folder.setter
-    def watch_folder(self, value: str):
+    def watch_folder(self, value: str) -> None:
         self._config["watchFolder"] = value
 
     @property
@@ -114,7 +116,7 @@ class Config:
         return self._config.get("temporaryFile", "")
 
     @temporary_file.setter
-    def temporary_file(self, value: str):
+    def temporary_file(self, value: str) -> None:
         self._config["temporaryFile"] = value
 
     @property
@@ -123,7 +125,7 @@ class Config:
         return self._config.get("filePatterns", "")
 
     @file_patterns.setter
-    def file_patterns(self, value: str):
+    def file_patterns(self, value: str) -> None:
         self._config["filePatterns"] = value
 
     @property
@@ -132,8 +134,19 @@ class Config:
         return self._config.get("metadataSuffix", ".metadata.yaml")
 
     @metadata_suffix.setter
-    def metadata_suffix(self, value: str):
+    def metadata_suffix(self, value: str) -> None:
         self._config["metadataSuffix"] = value
+
+    @property
+    def metadata_format(self) -> MetadataFormat:
+        """Serialization format for the sidecar file (``MetadataFormat.YAML``/``JSON``)."""
+        return MetadataFormat.from_value(self._config.get("metadataFormat", "yaml"))
+
+    @metadata_format.setter
+    def metadata_format(self, value: MetadataFormat | str) -> None:
+        # Store the plain string value so the TOML file stays human-readable and
+        # backward-compatible with configs written before MetadataFormat existed.
+        self._config["metadataFormat"] = MetadataFormat.from_value(value).value
 
     @property
     def recursive_watching(self) -> bool:
@@ -141,7 +154,7 @@ class Config:
         return bool(self._config.get("recursiveWatching", False))
 
     @recursive_watching.setter
-    def recursive_watching(self, value: bool):
+    def recursive_watching(self, value: bool) -> None:
         self._config["recursiveWatching"] = value
 
     @property
@@ -160,7 +173,7 @@ class Config:
         return None
 
     @multiview_layout.setter
-    def multiview_layout(self, value: dict | None):
+    def multiview_layout(self, value: dict | None) -> None:
         self._config["multiviewLayout"] = json.dumps(value) if value else ""
         self._config.pop("multiviewPaths", None)
 
@@ -170,7 +183,7 @@ class Config:
         return bool(self._config.get("tourSeen", False))
 
     @tour_seen.setter
-    def tour_seen(self, value: bool):
+    def tour_seen(self, value: bool) -> None:
         self._config["tourSeen"] = value
 
     @property

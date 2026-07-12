@@ -36,7 +36,9 @@ class LibraryPanel(QtWidgets.QWidget):
     #: host can stash what to save (e.g. snippet capture from the active panel).
     save_started = QtCore.pyqtSignal()
 
-    def __init__(self, list_view: EditableListView, save_text: str, parent=None):
+    def __init__(
+        self, list_view: EditableListView, save_text: str, parent: QtWidgets.QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         self._list = list_view
 
